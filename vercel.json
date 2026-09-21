@@ -1,0 +1,4 @@
+{
+  "regions": ["iad1"],
+  "crons": [{ "path": "/api/health", "schedule": "0 0 * * *" }]
+}

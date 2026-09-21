@@ -1,0 +1,17 @@
+# Secrets — never commit (a real key already lives in .env)
+.env
+.env*.local
+.env*.production
+
+# Next.js
+.next/
+out/
+node_modules/
+
+# Vercel
+.vercel
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
