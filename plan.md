@@ -50,7 +50,6 @@ ycomb/
 │   ├── manifest.ts                 # PWA manifest (cut first if behind)
 │   ├── room/[id]/page.tsx          # war-room screen (server: auth check)
 │   ├── room/[id]/Room.tsx          # RoomProvider id=war-<id> + ClientSideSuspense
-│   ├── middleware.ts               # room/[id] session check → redirect / (DENY lives here)
 │   └── api/
 │       ├── health/route.ts         # GET → {ok:true} (warm ping target)
 │       ├── liveblocks-auth/route.ts# POST prepareSession → allow("war-<uuid>") → authorize
@@ -91,6 +90,7 @@ ycomb/
 ├── drizzle/                       # DECIDED: Drizzle (not Prisma) — 0001_outbox_approvals_audit.sql + RLS per roomId
 │   ├── drizzle.config.ts (repo root, Drizzle convention)  lib/db.ts (see lib)
 ├── public/manifest.webmanifest  public/indexes/field-manuals.json  public/moss-snapshot.json
+├── middleware.ts                   # root-level only (Next ignores app/middleware.ts); room/[id] session check → redirect / (DENY lives here)
 ├── package.json  next.config.mjs  vercel.json  vitest.config.ts  playwright.config.ts
 ├── .env.local.example              # DATABASE_URL(+_UNPOOLED), MOSS_PROJECT_ID, MOSS_PROJECT_KEY, MOSS_INDEX_NAME=war-room-seed, LIVEBLOCKS_SECRET_KEY, GOOGLE key, DISABLE_LLM=0, RECONCILER_INTERVAL_MS, CO_SIGN_WINDOW_MS (test overrides documented)
 ├── .vercelignore  README.md  CHANGELOG.md  plan.md
