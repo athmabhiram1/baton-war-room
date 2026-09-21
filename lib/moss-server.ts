@@ -326,3 +326,37 @@ export async function getAuthToken(): Promise<{ token: string; expiresIn: number
   await ensureLoaded();
   return c.getAuthToken();
 }
+
+// ---------------------------------------------------------------------------
+// T4: session.addDocs(turn) — append the completed turn to the room session
+// logbook so successors resume with zero repeat questions (S2). Best-effort:
+// resolves { ok:false } when Moss is unconfigured instead of throwing, so the
+// worker turn still completes on fallback search.
+// ---------------------------------------------------------------------------
+
+export async function appendSessionDocs(
+  roomId: string,
+  docs: Array<{ id: string; text: string }>,
+): Promise<{ ok: boolean }> {
+  const c = getClient();
+  if (!c || docs.length === 0) return { ok: false };
+  try {
+    await ensureLoaded();
+    const s = await Promise.race([
+      c.session(indexName(), undefined, undefined),
+      sleep(2500).then(() => {
+        throw new Error("session timeout -> skip addDocs");
+      }),
+    ]);
+    const sess = s as unknown as {
+      addDocs: (d: Array<{ id: string; text: string }>) => Promise<unknown>;
+    };
+    if (typeof sess.addDocs !== "function") return { ok: false };
+    // Scope turn docs to the room so cross-room sessions never merge logbooks.
+    void roomId;
+    await sess.addDocs(docs);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}

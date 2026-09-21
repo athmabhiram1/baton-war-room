@@ -123,6 +123,7 @@ function RoomShell({ id }: { id: string }) {
   const [drawer, setDrawer] = useState(false);
   const [apNote, setApNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [modeLabel, setModeLabel] = useState("LIVE");
+  const [agentPhase, setAgentPhase] = useState("attached to session…");
   const toastSeq = useRef(0);
   const sparkRef = useRef<HTMLCanvasElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -161,9 +162,27 @@ function RoomShell({ id }: { id: string }) {
       setPaletteOpen(true);
     };
     window.addEventListener("baton:palette", onPalette);
+    const onPhase = (e: Event) => {
+      const phase = (e as CustomEvent<string>).detail;
+      const label =
+        phase === "thinking"
+          ? "reading the feed…"
+          : phase === "searching"
+            ? "validating against the session…"
+            : phase === "writing"
+              ? "writing a cited answer…"
+              : phase === "complete"
+                ? "answer posted to war-feed…"
+                : phase === "blocked"
+                  ? "turn blocked — isolation_violation logged…"
+                  : "attached to session…";
+      setAgentPhase(label);
+    };
+    window.addEventListener("baton:agent-status", onPhase);
     return () => {
       clearInterval(iv);
       window.removeEventListener("baton:palette", onPalette);
+      window.removeEventListener("baton:agent-status", onPhase);
     };
   }, [refreshMetrics]);
 
@@ -724,7 +743,7 @@ function RoomShell({ id }: { id: string }) {
                 <span className={`led${agentDown ? " dead" : " ok"}`} />
                 <span id="agStatus">{agentDown ? "DETACHED" : "LIVE"}</span>
               </div>
-              <div id="agTask">{agentDown ? "questions parking to the logbook…" : "attached to session…"}</div>
+              <div id="agTask">{agentDown ? "questions parking to the logbook…" : agentPhase}</div>
               <div className="kv">
                 <div className="r">
                   <span>Logbook coverage</span>

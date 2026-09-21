@@ -15,6 +15,17 @@ export type FeedAnswer = {
   pending?: boolean;
 };
 
+// T4 worker agent-status: thinking→searching→writing→complete (blocked on
+// validation deny). Mirrors lib/worker.ts WorkerStatus; broadcast on
+// baton:agent-status so RoomShell's agent pane follows the turn.
+export type AgentStatus = "idle" | "thinking" | "searching" | "writing" | "complete" | "blocked";
+
+function setAgentStatus(s: AgentStatus) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent<AgentStatus>("baton:agent-status", { detail: s }));
+  }
+}
+
 // Canned SOP docs for ?fixture=1: zero Moss calls, answered locally.
 const FIXTURE_ANSWERS: Array<{ answer: string; citations: Citation[]; ms: number }> = [
   {
@@ -73,6 +84,7 @@ export default function SearchBox({
   const [sugOpen, setSugOpen] = useState(false);
   const [sugHi, setSugHi] = useState(0);
   const [offline, setOffline] = useState(false);
+  const [agentStatus, setAgentStatusLocal] = useState<AgentStatus>("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const keySeq = useRef(0);
 
@@ -98,6 +110,127 @@ export default function SearchBox({
     return next;
   }
 
+  function trackStatus(s: AgentStatus) {
+    setAgentStatusLocal(s);
+    setAgentStatus(s);
+  }
+
+  async function askViaTurn(question: string, pendingKey: string, t0: number): Promise<boolean> {
+    trackStatus("thinking");
+    let res: Response;
+    try {
+      trackStatus("searching");
+      res = await fetch("/api/turn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(roomId ? { q: question, roomId } : { q: question }),
+      });
+    } catch {
+      return false;
+    }
+    if (res.status === 404 || res.status === 501) return false;
+    const body = (await res.json()) as {
+      answer?: string;
+      citations?: Citation[];
+      timeTakenInMs?: number;
+      error?: string;
+      blocked?: boolean;
+      blockReason?: string;
+    };
+    if (res.status === 403 && body.blocked) {
+      trackStatus("blocked");
+      const reason = body.blockReason ?? "validation";
+      setAnswers((prev) =>
+        prev.map((a) =>
+          a.key === pendingKey
+            ? {
+                ...a,
+                answer: `Turn blocked (${reason}) — isolation_violation logged. No generation, no writes.`,
+                citations: [],
+                ms: typeof body.timeTakenInMs === "number" ? body.timeTakenInMs : 0,
+                pending: false,
+              }
+            : a,
+        ),
+      );
+      return true;
+    }
+    if (!res.ok) {
+      setError(body.error ?? `turn failed (${res.status})`);
+      setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
+      trackStatus("idle");
+      return true;
+    }
+    const ms =
+      typeof body.timeTakenInMs === "number" ? body.timeTakenInMs : Math.round(performance.now() - t0);
+    const citations = (Array.isArray(body.citations) ? body.citations : []).map((c) => ({
+      id: c.id,
+      score: c.score,
+      text: c.text,
+    }));
+    trackStatus("writing");
+    setAnswers((prev) =>
+      prev.map((a) =>
+        a.key === pendingKey
+          ? {
+              ...a,
+              answer: typeof body.answer === "string" && body.answer.length > 0 ? body.answer : "No answer returned.",
+              citations,
+              ms,
+              pending: false,
+            }
+          : a,
+      ),
+    );
+    onResult?.(ms);
+    trackStatus("complete");
+    return true;
+  }
+
+  async function askViaQuery(question: string, pendingKey: string, t0: number) {
+    try {
+      const res = await fetch("/api/query", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(roomId ? { q: question, roomId } : { q: question }),
+      });
+      const body = (await res.json()) as {
+        citations?: Citation[];
+        timeTakenInMs?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(body.error ?? `query failed (${res.status})`);
+        setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
+        return;
+      }
+      const ms =
+        typeof body.timeTakenInMs === "number"
+          ? body.timeTakenInMs
+          : Math.round(performance.now() - t0);
+      const citations = (Array.isArray(body.citations) ? body.citations : []).map((c) => ({
+        id: c.id,
+        score: c.score,
+        text: c.text,
+      }));
+      const cited = citations
+        .slice(0, 5)
+        .map((c) => `[${c.id} score=${c.score}] ${c.text.slice(0, 280)}`)
+        .join("\n\n");
+      setAnswers((prev) =>
+        prev.map((a) =>
+          a.key === pendingKey
+            ? { ...a, answer: cited.length > 0 ? cited : "No citations returned.", citations, ms, pending: false }
+            : a,
+        ),
+      );
+      onResult?.(ms);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
+    }
+  }
+
   async function ask(query: string) {
     const question = query.trim();
     if (question.length === 0 || loading) return;
@@ -105,7 +238,6 @@ export default function SearchBox({
     setError(null);
     setSugOpen(false);
 
-    // ?fixture=1: answer from canned docs, no Moss/network call.
     if (isFixture()) {
       const canned = FIXTURE_ANSWERS[0];
       pushAnswer({
@@ -128,46 +260,12 @@ export default function SearchBox({
 
     const t0 = performance.now();
     try {
-      const res = await fetch("/api/query", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(roomId ? { q: question, roomId } : { q: question }),
-      });
-      const body = (await res.json()) as {
-        citations?: Citation[];
-        timeTakenInMs?: number;
-        error?: string;
-      };
-      if (!res.ok) {
-        setError(body.error ?? `query failed (${res.status})`);
-        setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
-        return;
+      const handled = await askViaTurn(question, pendingKey, t0);
+      if (!handled) {
+        trackStatus("searching");
+        await askViaQuery(question, pendingKey, t0);
+        trackStatus("complete");
       }
-      const ms =
-        typeof body.timeTakenInMs === "number"
-          ? body.timeTakenInMs
-          : Math.round(performance.now() - t0);
-      // score each citation for display; AnswerCard shows id + score + ms.
-      const citations = (Array.isArray(body.citations) ? body.citations : []).map((c) => ({
-        id: c.id,
-        score: c.score,
-        text: c.text,
-      }));
-      const cited = citations
-        .slice(0, 5)
-        .map((c) => `[${c.id} score=${c.score}] ${c.text.slice(0, 280)}`)
-        .join("\n\n");
-      setAnswers((prev) =>
-        prev.map((a) =>
-          a.key === pendingKey
-            ? { ...a, answer: cited.length > 0 ? cited : "No citations returned.", citations, ms, pending: false }
-            : a,
-        ),
-      );
-      onResult?.(ms);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
     } finally {
       setLoading(false);
       setQ("");
@@ -234,7 +332,7 @@ export default function SearchBox({
   }
 
   const feed = (
-    <div className="anslist" aria-label="Answer feed" aria-live="polite">
+    <div className="anslist" aria-label="Answer feed" aria-live="polite" data-agent-status={agentStatus}>
       {answers.map((a) =>
         a.pending ? (
           <div className="mg" key={a.key}>
@@ -242,7 +340,7 @@ export default function SearchBox({
             <div className="mg-col">
               <div className="mg-head">
                 <b>baton-1</b>
-                <span className="rt">thinking</span>
+                <span className="rt" data-testid="agent-phase">{agentStatus === "idle" ? "thinking" : agentStatus}</span>
               </div>
               <div className="ablock">
                 <div className="think">
