@@ -1,0 +1,2125 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="dark light"/>
+<title>Baton — Shift Handoff War-Room</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 17 17 7' stroke='%23D9A441' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('bt-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* ================= tokens (type ramp bumped ~10%) ================= */
+:root{
+  --bg:#131211; --panel:#191816; --panel2:#1F1E1B; --panel3:#262521;
+  --line:#2B2A26; --line2:#3A3831;
+  --ink:#EDEBE3; --ink2:#A9A598; --ink3:#757266;
+  --ok:#5DBB8A; --warn:#D9A441; --bad:#D96A5B;
+  --btn:#EDEBE3; --btn-ink:#151410;
+  --shadow:0 18px 44px rgba(0,0,0,.5);
+  --sans:'Instrument Sans',system-ui,sans-serif;
+  --serif:'Newsreader',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --lw:288px; --rw:372px;
+  --r-s:5px; --r-m:8px;
+}
+html[data-theme="light"]{
+  --bg:#FAF9F6; --panel:#FFFFFF; --panel2:#F4F3EE; --panel3:#EBE9E1;
+  --line:#E6E4DB; --line2:#D3D0C4;
+  --ink:#1B1A16; --ink2:#5D5A4E; --ink3:#8E8A7B;
+  --ok:#237C51; --warn:#8F6A16; --bad:#B24B3D;
+  --btn:#1B1A16; --btn-ink:#FAF9F6;
+  --shadow:0 14px 36px rgba(40,36,26,.13);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.55;overflow:hidden;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+body.dragging{cursor:col-resize;user-select:none}
+[hidden]{display:none!important}
+::selection{background:color-mix(in srgb,var(--warn) 28%,transparent)}
+:focus{outline:none}
+:focus-visible{outline:1.5px solid var(--ink2);outline-offset:2px;border-radius:3px}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input{font:inherit;color:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line2);border:2px solid var(--bg);border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+.mono{font-family:var(--mono)}
+.sp{flex:1}
+.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ================= motion kit ================= */
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes mpop{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes lineUp{to{transform:none}}
+@keyframes blink{50%{opacity:0}}
+@keyframes tp{0%,100%{opacity:.25;transform:none}50%{opacity:1;transform:translateY(-3px)}}
+@keyframes breath{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes rot{to{transform:rotate(360deg)}}
+@keyframes shk{0%,100%{transform:none}20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}
+@keyframes tin{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateX(20px)}}
+@keyframes ringPop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes sendPop{0%{transform:scale(.82)}60%{transform:scale(1.07)}100%{transform:scale(1)}}
+@keyframes shim{to{background-position:-200% 0}}
+@keyframes floatY{0%,100%{transform:none}50%{transform:translateY(-5px)}}
+@keyframes runRail{0%{left:4%;opacity:0}12%{opacity:1}86%{opacity:1}100%{left:96%;opacity:0}}
+@keyframes termIn{0%,10%{opacity:0;transform:translateX(-5px)}16%,84%{opacity:1;transform:none}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* ================= buttons ================= */
+.btn{height:37px;padding:0 15px;border-radius:var(--r-s);border:1px solid var(--line2);background:transparent;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:border-color .15s,background .15s,color .15s,transform .1s;white-space:nowrap}
+.btn:hover{border-color:var(--ink3);color:var(--ink)}
+.btn:active{transform:scale(.985)}
+.btn.primary{background:var(--btn);border-color:var(--btn);color:var(--btn-ink)}
+.btn.primary:hover{opacity:.9;color:var(--btn-ink)}
+.btn.dgr{color:var(--bad)}
+.btn.dgr:hover{border-color:var(--bad);color:var(--bad)}
+.btn.blk{width:100%}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn .ic{width:14px;height:14px}
+.icobtn{width:32px;height:32px;border-radius:var(--r-s);display:grid;place-items:center;color:var(--ink2);transition:color .15s,background .15s;flex:none}
+.icobtn:hover{background:var(--panel3);color:var(--ink)}
+.icobtn.dim{opacity:.35}
+.icobtn .ic{width:16px;height:16px}
+.shake{animation:shk .35s ease}
+
+/* ================= HERO ================= */
+#viewHero{height:100vh;overflow-y:auto}
+.hnav{max-width:1080px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;gap:22px;border-bottom:1px solid var(--line)}
+.hnav .brand{display:flex;align-items:center;gap:9px}
+.hnav .brand svg{width:20px;height:20px}
+.hnav .brand b{font-size:15.5px;font-weight:700;letter-spacing:.01em}
+.hnav a{font-size:13.5px;color:var(--ink2);text-decoration:none;transition:color .15s}
+.hnav a:hover{color:var(--ink)}
+.hwrap{max-width:1080px;margin:0 auto;padding:0 24px}
+.hero{display:grid;grid-template-columns:1.04fr .96fr;gap:60px;align-items:center;padding:76px 0 80px}
+.kick{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.18em;color:var(--ink2)}
+.kick::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warn);animation:breath 2.2s infinite}
+.hero h1{font-size:clamp(38px,5vw,62px);line-height:1.05;letter-spacing:-.025em;font-weight:700;margin:18px 0 20px}
+.hero h1 .ln{display:block;overflow:hidden}
+.hero h1 .ln i{display:block;font-style:normal;transform:translateY(110%);animation:lineUp .8s cubic-bezier(.2,.8,.2,1) forwards}
+.hero h1 .ln:nth-child(2) i{animation-delay:.09s}
+.hero h1 em{font-family:var(--serif);font-style:italic;font-weight:500;letter-spacing:-.01em}
+.hero .sub{font-size:16.5px;color:var(--ink2);line-height:1.7;max-width:50ch;opacity:0;animation:rise .6s ease .3s forwards}
+.hero .sub b{color:var(--ink);font-weight:600}
+.ctas{display:flex;gap:10px;margin-top:26px;opacity:0;animation:rise .6s ease .4s forwards}
+.ctas .btn{height:41px;padding:0 18px;font-size:14px}
+.hstats{display:flex;gap:0;margin-top:30px;border-top:1px solid var(--line);opacity:0;animation:rise .6s ease .5s forwards}
+.hstat{padding:14px 22px 0 0;margin-right:22px;font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--ink2);display:flex;align-items:center;gap:7px}
+.hstat i{width:6px;height:6px;border-radius:50%;flex:none}
+.hstat.g i{background:var(--ok)}.hstat.a i{background:var(--warn)}
+.mock{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);overflow:hidden;opacity:0;animation:rise .7s ease .25s forwards,floatY 8s ease-in-out 1s infinite}
+.mock-top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.mt{font-family:var(--mono);font-size:11px;color:var(--ink2);letter-spacing:.04em}
+.mlive{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;color:var(--ok)}
+.mlive i{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:breath 1.6s infinite}
+.mock-feed{height:344px;overflow:hidden;padding:13px 14px;display:flex;flex-direction:column;gap:9px;font-size:13px;line-height:1.5}
+.mrow{animation:rise .35s ease both}
+.m-sys{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--ink3);padding-left:32px}
+.m-sys b{color:var(--ink2);font-weight:600}
+.m-sys.warn b{color:var(--warn)}
+.m-hum{display:grid;grid-template-columns:24px 1fr;gap:9px}
+.m-av{width:24px;height:24px;border-radius:4px;background:var(--panel3);display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;color:var(--ink2)}
+.m-hum .mh{font-size:11.5px;font-weight:600}
+.m-hum p{color:var(--ink2)}
+.m-agt{display:grid;grid-template-columns:24px 1fr;gap:9px}
+.m-agt .m-av{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.m-agt .mbox{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-s);padding:10px 12px}
+.m-agt .mh{font-size:11.5px;font-weight:600;display:flex;gap:6px;align-items:center;margin-bottom:3px}
+.m-agt .mh .tag{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;color:var(--ink3);border:1px solid var(--line2);border-radius:3px;padding:1px 5px}
+.m-agt p{color:var(--ink2)}
+.m-cites{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.m-cite{font-family:var(--mono);font-size:9.5px;color:var(--ink2);border:1px solid var(--line2);border-radius:3px;padding:2px 7px}
+.m-cite b{color:var(--ink)}
+.m-ban{display:flex;align-items:center;gap:9px;border-left:2px solid var(--warn);background:var(--panel2);border-radius:0 var(--r-s) var(--r-s) 0;padding:9px 12px;font-size:12px;color:var(--ink2)}
+.m-ban b{color:var(--warn);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;flex:none}
+.mock-foot{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.05em}
+.rail{position:relative;flex:1;height:3px;background:var(--line);border-radius:2px}
+.rail::before,.rail::after{content:"";position:absolute;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--panel3);border:1.5px solid var(--line2)}
+.rail::before{left:-3px}
+.rail::after{right:-3px;background:var(--warn);border-color:var(--warn)}
+.rail .runner{position:absolute;top:-1.5px;width:6px;height:6px;border-radius:50%;background:var(--warn);animation:runRail 3.4s ease-in-out infinite}
+.thinkdots{display:inline-flex;gap:3px}
+.thinkdots i{width:3px;height:3px;border-radius:50%;background:var(--warn);animation:tp 1s infinite}
+.thinkdots i:nth-child(2){animation-delay:.15s}
+.thinkdots i:nth-child(3){animation-delay:.3s}
+.sect{padding:66px 0;border-top:1px solid var(--line)}
+.sect-h{max-width:600px;margin-bottom:38px}
+.sect-h h2{font-size:clamp(25px,3vw,34px);letter-spacing:-.02em;font-weight:700}
+.sect-h h2 em{font-family:var(--serif);font-style:italic;font-weight:500}
+.sect-h p{color:var(--ink2);margin-top:10px;font-size:15.5px;line-height:1.65}
+.rv{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.rv.in{opacity:1;transform:none}
+.loop{display:grid;grid-template-columns:repeat(5,1fr)}
+.lstep{padding:4px 18px 4px 0;border-left:1px solid var(--line);padding-left:16px}
+.lstep .n{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--ink3)}
+.lstep b{display:block;font-size:15px;margin:7px 0 5px}
+.lstep p{font-size:13px;color:var(--ink3);line-height:1.6}
+.lstep .stag{display:inline-block;margin-left:7px;font-family:var(--mono);font-size:9px;font-weight:600;color:var(--ink3);border:1px solid var(--line2);border-radius:3px;padding:1px 5px;vertical-align:1px}
+.featgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.feat{border:1px solid var(--line);border-radius:var(--r-m);padding:24px;background:var(--panel);transition:border-color .2s}
+.feat:hover{border-color:var(--line2)}
+.feat h3{font-size:17px;font-weight:700;margin-bottom:7px}
+.feat>p{font-size:14px;color:var(--ink2);line-height:1.65}
+.fviz{margin-top:16px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel2)}
+.term{list-style:none;padding:13px 15px;font-family:var(--mono);font-size:11.5px;color:var(--ink2);display:flex;flex-direction:column;gap:6px}
+.term li{opacity:0;animation:termIn 8s infinite}
+.term li:nth-child(1){animation-delay:0s}.term li:nth-child(2){animation-delay:2s}
+.term li:nth-child(3){animation-delay:4s}.term li:nth-child(4){animation-delay:6s}
+.term .tc{color:var(--ok)}.term .ta{color:var(--ink)}.term .tw{color:var(--warn)}
+.kvrow{display:flex;align-items:center;padding:11px 15px;font-size:13px;color:var(--ink2);border-top:1px solid var(--line)}
+.kvrow b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.mini-kill{display:flex;align-items:center;gap:9px;padding:16px 15px;flex-wrap:wrap}
+.mk-chip{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:5px 11px;border-radius:var(--r-s);border:1px solid var(--line2);color:var(--ink2)}
+.mk-chip.dead{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.mk-chip.alive{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);animation:ringPop .5s ease 2.2s both}
+.mini-cosign{display:flex;align-items:center;gap:12px;padding:17px 15px}
+.mring{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;color:transparent}
+.mring.on{background:var(--ok);border-color:var(--ok);color:#10130F;animation:ringPop .5s ease 1.4s both}
+.mring .ic{width:13px;height:13px;stroke-width:2.6}
+.stackstrip{border-top:1px solid var(--line)}
+.stackin{max-width:1080px;margin:0 auto;padding:17px 24px;display:flex;gap:22px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink3)}
+.stackin b{color:var(--ink2);font-weight:500}
+.hfoot{max-width:1080px;margin:0 auto;padding:22px 24px 34px;display:flex;justify-content:space-between;gap:16px;font-size:12.5px;color:var(--ink3);flex-wrap:wrap}
+
+/* ================= APP SHELL ================= */
+#viewApp{height:100vh;display:flex;flex-direction:column;transition:opacity .26s ease,transform .26s ease}
+#viewApp.entering{opacity:0;transform:translateY(8px)}
+#viewHero{transition:opacity .26s ease,transform .26s ease}
+#viewHero.leaving{opacity:0;transform:scale(1.01)}
+#appHeader{flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 13px;border-bottom:1px solid var(--line);background:var(--panel);position:relative;z-index:40}
+.abrand{display:flex;align-items:center;gap:9px;padding-right:13px;border-right:1px solid var(--line);height:28px}
+.abrand svg{width:18px;height:18px}
+.abrand b{font-size:14.5px;font-weight:700}
+.incident{display:flex;align-items:center;gap:9px;min-width:0}
+.incident .iid{font-family:var(--mono);font-size:11.5px;color:var(--ink2);white-space:nowrap}
+.incident .ttl{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.sev{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;padding:2px 7px;border-radius:3px;border:1px solid color-mix(in srgb,var(--bad) 45%,transparent);color:var(--bad);flex:none}
+.mw{position:relative;flex:none}
+#pillMode{display:flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:var(--r-s);border:1px solid var(--line2);background:transparent;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--ink2);transition:border-color .15s}
+#pillMode:hover{border-color:var(--ink3);color:var(--ink)}
+#pillMode .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+#pillMode.m-fixture .dot{background:var(--warn)}
+#pillMode.m-offline .dot{background:var(--bad)}
+#pillMode.m-pending .dot{background:var(--warn);animation:breath 1.1s infinite}
+#pillMode.m-sealed{opacity:.55}
+#pillMode.m-sealed .dot{background:var(--ink3)}
+#modeMenu{position:absolute;top:calc(100% + 6px);right:0;width:284px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);box-shadow:var(--shadow);padding:5px;display:none;z-index:60}
+#modeMenu.open{display:block;animation:pop .15s ease both}
+.mm-t{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;color:var(--ink3);padding:7px 9px 4px}
+.mm-item{display:flex;gap:9px;align-items:flex-start;width:100%;padding:8px 9px;border-radius:var(--r-s);text-align:left}
+.mm-item:hover{background:var(--panel3)}
+.mm-item .rd{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--line2);margin-top:2px;flex:none;display:grid;place-items:center}
+.mm-item.on .rd{border-color:var(--ink)}
+.mm-item.on .rd::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.mm-item b{display:block;font-size:13px}
+.mm-item .d2{display:block;font-size:12px;color:var(--ink3);line-height:1.45}
+.mm-warn{font-size:11px;color:var(--ink3);padding:7px 9px 5px;border-top:1px solid var(--line);margin-top:4px;line-height:1.5}
+.avatars{display:flex;align-items:center;flex:none}
+.av{width:28px;height:28px;border-radius:5px;background:var(--panel3);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--mono);font-size:9px;font-weight:600;color:var(--ink2);margin-left:-5px;position:relative;flex:none}
+.av:first-child{margin-left:0}
+.av .st{position:absolute;bottom:-2px;right:-2px;width:7px;height:7px;border-radius:50%;background:var(--ok);border:1.5px solid var(--panel)}
+.av.bot{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.hclock{text-align:right;line-height:1.3;flex:none}
+.hclock b{display:block;font-family:var(--mono);font-size:12px;font-weight:500}
+.hclock span{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--ink3)}
+#sync{display:none;align-items:center;gap:9px;padding:6px 16px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink2);background:var(--panel);flex:none}
+#sync.show{display:flex;animation:fade .2s ease both}
+#sync.bad{color:var(--bad)}
+.spin{width:10px;height:10px;border:1.5px solid var(--line2);border-top-color:currentColor;border-radius:50%;animation:rot .8s linear infinite;flex:none}
+
+/* ================= LAYOUT ================= */
+#layout{flex:1;display:flex;min-height:0}
+#left,#right{flex:none;overflow:hidden;background:var(--panel)}
+#left{width:var(--lw);border-right:1px solid var(--line);transition:margin-left .32s cubic-bezier(.4,0,.2,1)}
+#right{width:var(--rw);border-left:1px solid var(--line);transition:margin-right .32s cubic-bezier(.4,0,.2,1)}
+body.l-off #left{margin-left:calc(var(--lw) * -1)}
+body.r-off #right{margin-right:calc(var(--rw) * -1)}
+.pin{width:var(--lw);height:100%;overflow:hidden;display:flex;flex-direction:column}
+#right .pin{width:var(--rw)}
+.pinScroll{flex:1;overflow-y:auto;min-height:0;padding:15px 13px;display:flex;flex-direction:column;gap:16px}
+.grip{flex:none;width:7px;cursor:col-resize;position:relative;touch-action:none}
+.grip::before{content:"";position:absolute;left:3px;top:0;bottom:0;width:1px;background:var(--line);transition:background .15s,width .15s}
+.grip:hover::before,.grip.act::before{width:3px;left:2px;background:var(--ink3)}
+body.l-off #gripL,body.r-off #gripR{display:none}
+.edgeTab{position:fixed;top:50%;transform:translateY(-50%);z-index:45;width:26px;height:76px;background:var(--panel);border:1px solid var(--line2);color:var(--ink3);display:none;place-items:center;transition:color .15s}
+.edgeTab:hover{color:var(--ink)}
+#sbEdge{left:0;border-left:none;border-radius:0 8px 8px 0}
+#opsEdge{right:0;border-right:none;border-radius:8px 0 0 8px}
+@media(min-width:1001px){body.l-off #sbEdge{display:grid}body.r-off #opsEdge{display:grid}}
+
+/* ================= SIDEBAR ================= */
+.sb-t{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.18em;color:var(--ink3);margin-bottom:7px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-m);padding:13px}
+.inc-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.inc-head .ttl{font-weight:700;font-size:14px;line-height:1.35;min-width:0}
+.inc-sub{font-size:12.5px;color:var(--ink2);line-height:1.55}
+.inc-rows{margin-top:10px;border-top:1px solid var(--line);padding-top:9px;display:flex;flex-direction:column;gap:6px}
+.inc-rows .r{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;min-width:0}
+.inc-rows .r span:first-child{color:var(--ink3)}
+.inc-rows .r span:last-child{font-weight:600;font-family:var(--mono);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag-ok{color:var(--ok)}.tag-wa{color:var(--warn)}
+.person{display:flex;align-items:center;gap:9px;padding:5px 0;min-width:0}
+.person .av{margin:0}
+.person>div{min-width:0;flex:1}
+.pn{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pn i{font-style:normal;font-weight:400;color:var(--ink3)}
+.pr{font-size:11.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.person .ps{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:.08em;flex:none;border:1px solid var(--line2);border-radius:3px;padding:1.5px 5px}
+#guideHead{display:flex;align-items:center;gap:6px;min-width:0}
+#guideHead .ic{width:13px;height:13px;color:var(--warn)}
+#guideHead b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#guideCount{font-family:var(--mono);font-size:10.5px;color:var(--ink2);margin-left:auto;flex:none}
+.gitem{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:var(--ink2);min-width:0}
+.gitem>span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gbx{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--line2);flex:none;display:grid;place-items:center;font-size:9.5px;color:transparent;transition:all .25s}
+.gitem.done{color:var(--ink)}
+.gitem.done .gbx{background:var(--ink);border-color:var(--ink);color:var(--bg);animation:ringPop .3s ease both}
+.g-dismiss{font-size:11px;color:var(--ink3);margin-top:6px;text-decoration:underline dotted;align-self:flex-start}
+.g-dismiss:hover{color:var(--ink2)}
+.sb-actions{display:flex;flex-direction:column;gap:5px}
+.sb-btn{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--r-s);font-size:13px;font-weight:500;color:var(--ink2);border:1px solid var(--line);background:var(--panel2);text-align:left;transition:all .15s;min-width:0}
+.sb-btn:hover{color:var(--ink);border-color:var(--line2)}
+.sb-btn .ic{width:14px;height:14px;color:var(--ink3)}
+.sb-btn kbd{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink3);border:1px solid var(--line2);border-radius:3px;padding:1px 4px}
+.sb-foot{margin-top:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink3);line-height:1.9;padding-top:6px}
+.sb-foot b{color:var(--ink2);font-weight:500}
+
+/* ================= FEED / CHAT ================= */
+#center{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.feedhead{flex:none;display:flex;align-items:center;gap:10px;height:44px;padding:0 18px;border-bottom:1px solid var(--line)}
+.feedhead .fh-t{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--ink3)}
+#evCount{font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+#scroll{flex:1;overflow-y:auto;min-height:0}
+#inner{max-width:736px;margin:0 auto;padding:16px 20px 6px}
+.welcome{border:1px solid var(--line);border-left:2px solid var(--warn);border-radius:0 var(--r-m) var(--r-m) 0;background:var(--panel2);padding:13px 42px 13px 15px;margin-bottom:16px;animation:rise .35s ease both;position:relative}
+.welcome b{display:flex;align-items:center;gap:7px;font-size:13.5px;margin-bottom:4px}
+.welcome b .ic{color:var(--warn);width:14px;height:14px}
+.welcome p{font-size:13px;color:var(--ink2);line-height:1.6}
+.welcome p b{color:var(--ink)}
+#welcomeX{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:4px;display:grid;place-items:center;color:var(--ink3)}
+#welcomeX:hover{color:var(--ink)}
+.mg{display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 10px;padding:4px 0;animation:rise .25s ease both}
+.mg-av{width:28px;height:28px;border-radius:5px;background:var(--panel3);display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;font-weight:600;color:var(--ink2);margin-top:1px}
+.mg-av.bot{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.mg-col{min-width:0}
+.mg-head{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+.mg-head b{font-size:13px;font-weight:600}
+.mg-head .rt{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--ink3);border:1px solid var(--line2);border-radius:3px;padding:0 4px;text-transform:uppercase}
+.mg-head .mdl{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.mg-head time{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:auto;flex:none}
+.mg-row{margin:2px 0}
+.mg-text{font-size:15px;line-height:1.62;color:var(--ink);overflow-wrap:anywhere;white-space:pre-wrap}
+.mg.dim .mg-text{color:var(--ink3)}
+.qtag{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:3px;padding:1.5px 6px;margin-top:4px}
+.qtag.done{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.ablock{margin-top:4px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-m);padding:13px 15px;max-width:64ch}
+.ablock .think{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--ink3)}
+.dots{display:inline-flex;gap:3px}
+.dots i{width:3.5px;height:3.5px;border-radius:50%;background:var(--warn);animation:tp 1.1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}
+.dots i:nth-child(3){animation-delay:.3s}
+.atext p{font-size:15px;line-height:1.65;color:var(--ink)}
+.atext p+p{margin-top:8px}
+.caret{display:inline-block;width:6px;height:14px;background:var(--warn);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(2) infinite}
+.cites{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.cite{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--ink2);border:1px solid var(--line2);border-radius:var(--r-s);padding:3.5px 9px;transition:all .15s;animation:fade .3s ease both;max-width:100%}
+.cite:hover{border-color:var(--ink3);color:var(--ink)}
+.cite .cid{font-weight:600;color:var(--ink)}
+.cite .cn{color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cite .sc{color:var(--ink3)}
+.citesrc{margin-top:9px;border:1px solid var(--line2);border-radius:var(--r-s);padding:11px 13px;background:var(--panel);animation:pop .22s ease both}
+.citesrc .csh{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.citesrc .csh b{font-size:13.5px}
+.citesrc .csh span{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.csbar{height:2px;border-radius:2px;background:var(--line);overflow:hidden;margin:7px 0}
+.csbar i{display:block;height:100%;background:var(--warn);transition:width .5s ease}
+.cstags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.cstags span{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--ink3);border:1px solid var(--line);border-radius:3px;padding:1.5px 6px}
+.citesrc p{font-size:13px;color:var(--ink2);line-height:1.6}
+.ameta{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:9px;letter-spacing:.03em;flex-wrap:wrap}
+.ameta b{color:var(--ink2);font-weight:500}
+.ameta .ckic{color:var(--ok)}
+.sysline{display:flex;align-items:baseline;gap:8px;padding:3px 0 3px 38px;font-family:var(--mono);font-size:11px;color:var(--ink3);animation:fade .25s ease both;line-height:1.5}
+.sysline b{font-weight:600;letter-spacing:.08em;flex:none;color:var(--ink3)}
+.sysline.k-ok b{color:var(--ok)}
+.sysline.k-wa b{color:var(--warn)}
+.sysline.k-bad b{color:var(--bad)}
+.sysline .ic{width:12px;height:12px;align-self:center;flex:none}
+.sysline.k-ok .ic{color:var(--ok)}.sysline.k-wa .ic{color:var(--warn)}.sysline.k-bad .ic{color:var(--bad)}
+.divider{display:flex;align-items:center;gap:12px;padding:13px 0 11px;animation:fade .3s ease both}
+.divider span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.22em;color:var(--warn);white-space:nowrap}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line2)}
+#typing{display:none;align-items:center;gap:8px;padding:4px 0 6px 38px;font-size:12.5px;color:var(--ink3)}
+#typing.show{display:flex}
+#jump{position:absolute;right:18px;bottom:12px;display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink2);background:var(--panel);border:1px solid var(--line2);border-radius:999px;padding:6px 13px;box-shadow:var(--shadow);z-index:5}
+#jump.show{display:flex;animation:rise .2s ease both}
+#jump:hover{color:var(--ink)}
+.skl{padding:8px 0 8px 38px}
+.skl .l{height:11px;border-radius:4px;background:linear-gradient(90deg,var(--panel3) 25%,var(--line) 50%,var(--panel3) 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+.skl .l1{width:32%}.skl .l2{width:74%;margin-top:6px}.skl .l3{width:52%;margin-top:6px}
+
+/* ================= COMPOSER (rebuilt) ================= */
+#composer{flex:none;border-top:1px solid var(--line);background:var(--panel);padding:11px 20px 9px;position:relative;z-index:46;animation:rise .4s ease .12s both}
+.cin{max-width:736px;margin:0 auto;position:relative}
+.chips{display:flex;align-items:center;gap:2px;margin-bottom:8px;flex-wrap:wrap}
+.chips-l{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.16em;color:var(--ink3);margin-right:7px}
+.qc{font-size:12.5px;color:var(--ink3);border-radius:var(--r-s);padding:4.5px 9px;transition:color .15s,background .15s;animation:rise .45s ease both}
+.qc:nth-of-type(1){animation-delay:.18s}
+.qc:nth-of-type(2){animation-delay:.26s}
+.qc:nth-of-type(3){animation-delay:.34s}
+.qc::before{content:"/ ";opacity:.55}
+.qc::after{content:"↵";font-family:var(--mono);font-size:10.5px;margin-left:7px;opacity:0;transform:translateX(-4px);transition:opacity .15s,transform .15s;display:inline-block}
+.qc:hover{color:var(--ink);background:var(--panel3)}
+.qc:hover::after{opacity:.75;transform:none}
+#qForm{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:4px 5px 4px 14px;transition:border-color .2s,background .2s,box-shadow .2s}
+#qForm:focus-within{border-color:var(--ink3);background:var(--panel);box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 5%,transparent)}
+#qForm .sic{color:var(--ink3);transition:color .2s}
+#qForm:focus-within .sic{color:var(--ink)}
+#qInput{flex:1;background:none;border:none;padding:11px 0;font-size:15px;min-width:0;color:var(--ink)}
+#qInput::placeholder{color:var(--ink3)}
+#qInput:disabled{opacity:.45}
+.in-kbd{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--ink3);border:1px solid var(--line2);border-radius:4px;padding:3.5px 8px;transition:all .15s;flex:none}
+.in-kbd:hover{color:var(--ink);border-color:var(--ink3)}
+#sendBtn{width:35px;height:35px;border-radius:8px;display:grid;place-items:center;flex:none;color:var(--ink3);border:1px solid var(--line2);background:transparent;transition:background .2s,color .2s,border-color .2s,transform .1s,opacity .2s}
+#sendBtn .ic{width:15px;height:15px;stroke-width:2.1}
+#sendBtn.ready{background:var(--btn);border-color:var(--btn);color:var(--btn-ink);animation:sendPop .28s ease}
+#sendBtn.ready:hover{opacity:.88}
+#sendBtn:active:not(:disabled){transform:scale(.93)}
+#sendBtn:disabled{opacity:.3;cursor:not-allowed}
+.fstatus{display:flex;align-items:center;min-height:24px;margin-top:7px;font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+.fstatus>span{display:none;align-items:center;gap:6px}
+.fstatus[data-state="hints"] .st-hints{display:inline-flex}
+.fstatus[data-state="live"] .st-live{display:inline-flex;animation:fade .2s ease both}
+.fstatus[data-state="off"] .st-off{display:inline-flex;animation:fade .2s ease both}
+.fstatus kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line2);border-radius:3px;padding:1px 4px}
+.st-live{color:var(--warn)}
+.st-live .sdot{width:6px;height:6px;border-radius:50%;background:var(--warn);animation:breath 1s infinite;flex:none}
+.st-off{color:var(--warn)}
+#sug{position:absolute;left:0;right:0;bottom:calc(100% + 7px);background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);box-shadow:var(--shadow);max-height:320px;overflow-y:auto;display:none;z-index:50}
+#sug.open{display:block;animation:pop .16s ease both}
+.sg-h{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;color:var(--ink3);padding:10px 13px 4px}
+.sg{display:flex;align-items:center;gap:9px;width:100%;padding:9px 13px;text-align:left;min-width:0;animation:rise .22s ease both}
+.sg:hover{background:var(--panel3)}
+.sg.on{background:var(--panel3)}
+.sg .ic{width:14px;height:14px;color:var(--ink3);flex:none}
+.sg.log .ic{color:var(--ok)}
+.sg .sgl{font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sg.log .sgl{color:var(--ok)}
+.sg .sgs{margin-left:auto;font-size:11px;color:var(--ink3);white-space:nowrap;flex:none;max-width:44%;overflow:hidden;text-overflow:ellipsis}
+.sg-f{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--ink3);padding:8px 13px;border-top:1px solid var(--line)}
+
+/* ================= OPS PANEL ================= */
+#opsTabs{position:relative;display:flex;border-bottom:1px solid var(--line);flex:none}
+.ops-tab{position:relative;z-index:1;flex:1;height:44px;font-size:12.5px;font-weight:600;color:var(--ink3);display:flex;align-items:center;justify-content:center;gap:5px;transition:color .15s;min-width:0;white-space:nowrap}
+.ops-tab:hover{color:var(--ink2)}
+.ops-tab.on{color:var(--ink)}
+#tabInd{position:absolute;bottom:-1px;left:0;height:2px;width:0;background:var(--ink);transition:transform .26s cubic-bezier(.3,1,.4,1),width .26s cubic-bezier(.3,1,.4,1)}
+.tdot{width:5px;height:5px;border-radius:50%;background:var(--warn);display:none;flex:none}
+.tdot.attn{display:block}
+.tdot.red{background:var(--bad)}
+.ops-pane{display:none;overflow-y:auto;padding:16px;flex:1;min-height:0}
+.ops-pane.on{display:block;animation:fade .22s ease both}
+.pane-t{font-size:15.5px;font-weight:700}
+.pane-s{font-size:12.5px;color:var(--ink2);margin-top:3px;line-height:1.55}
+.stat-led{display:flex;align-items:center;gap:8px;margin-top:13px}
+.led{width:8px;height:8px;border-radius:50%;background:var(--ink3);flex:none;transition:background .3s}
+.led.ok{background:var(--ok);animation:breath 1.4s infinite}
+.led.busy{background:var(--warn);animation:breath .9s infinite}
+.led.dead{background:var(--bad)}
+#agStatus{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.1em}
+#agTask{font-size:12px;color:var(--ink3);margin-top:4px;min-height:16px}
+.kv{display:flex;flex-direction:column;gap:9px;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.kv .r{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px}
+.kv .r span:first-child{color:var(--ink3)}
+.kv .r span:last-child{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+.covbar{height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.covbar i{display:block;height:100%;background:var(--ink2);border-radius:2px;transition:width .6s ease}
+.pane-actions{display:grid;gap:7px;margin-top:14px}
+.hashrow{display:flex;align-items:center;gap:7px;margin-top:11px;font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.hashrow b{color:var(--ink2)}
+.hashrow button{color:var(--ink3);display:grid;place-items:center}
+.hashrow button:hover{color:var(--ink)}
+.signers{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.signer{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:var(--r-s);padding:10px 12px;background:var(--panel2);transition:border-color .25s;min-width:0}
+.signer.on{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.signer .ring{width:19px;height:19px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;color:transparent;flex:none;transition:all .25s}
+.signer.on .ring{background:var(--ok);border-color:var(--ok);color:#10130F;animation:ringPop .35s ease both}
+.signer .ring .ic{width:11px;height:11px;stroke-width:2.6}
+.signer>div{min-width:0;flex:1}
+.signer .sn{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.signer .sr{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.signer .ss{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink3);flex:none}
+.signer.on .ss{color:var(--ok)}
+#apProg{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:12.5px;color:var(--ink2)}
+#apProg .bar{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+#apProg .bar i{display:block;height:100%;width:0;background:var(--warn);transition:width .4s ease,background .3s}
+#apProg.full .bar i{background:var(--ok)}
+.appnote{font-size:11.5px;color:var(--ink3);margin-top:9px;line-height:1.6}
+#apDone{display:none;align-items:flex-start;gap:8px;margin-top:12px;border-radius:var(--r-s);padding:11px 13px;font-size:12.5px;line-height:1.5}
+#apDone.show{display:flex;animation:rise .3s ease both}
+#apDone.good{background:color-mix(in srgb,var(--ok) 9%,transparent);color:var(--ok)}
+#apDone.fail{background:color-mix(in srgb,var(--bad) 9%,transparent);color:var(--bad)}
+.lnk{font-size:11.5px;color:var(--ink3);text-decoration:underline dotted;margin-top:10px;display:inline-block}
+.lnk:hover{color:var(--ink2)}
+.stepper{display:flex;align-items:center;margin:14px 0 4px}
+.stp{display:flex;flex-direction:column;align-items:center;gap:5px;width:54px;flex:none}
+.stp .d{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--line2);transition:all .3s}
+.stp.on .d{background:var(--warn);border-color:var(--warn);animation:ringPop .35s ease both}
+.stp.done .d{background:var(--ok);border-color:var(--ok);animation:ringPop .35s ease both}
+.stp em{font-style:normal;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.12em;color:var(--ink3)}
+.stp.on em{color:var(--warn)}
+.stp.done em{color:var(--ok)}
+.sbar{flex:1;height:1.5px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:12px}
+.sbar i{display:block;height:100%;width:0;background:var(--warn);transition:width .5s ease}
+.sbar.done i{background:var(--ok)}
+.ho-rows{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:7px}
+.ho-rows .r{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;min-width:0}
+.ho-rows .r span:first-child{color:var(--ink3);flex:none}
+.ho-rows .r span:last-child{font-weight:600;font-family:var(--mono);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:13px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-s);padding:10px 12px}
+.tile em{display:block;font-style:normal;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--ink3)}
+.tile b{display:block;font-size:20px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.tile small{font-size:10.5px;color:var(--ink3);font-weight:500;margin-left:2px}
+#chipVerdict{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;border-radius:3px;border:1px solid var(--line2);padding:3.5px 9px;margin-top:12px;color:var(--ink3)}
+#chipVerdict.pass{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+#chipVerdict.fail{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+#spark{width:100%;height:66px;display:block;margin-top:10px}
+.ltmeta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-top:5px;letter-spacing:.05em}
+.dim-note{font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.6}
+
+/* handoff banner */
+#hoBanner{display:none;align-items:center;gap:13px;margin:11px auto 0;width:min(736px,calc(100% - 40px));padding:12px 15px;border-radius:0 var(--r-m) var(--r-m) 0;border-left:2px solid var(--warn);background:var(--panel2);animation:rise .3s ease both}
+#hoBanner.show{display:flex}
+.ringw{position:relative;width:42px;height:42px;flex:none}
+.ringw .rb{stroke:var(--line2)}
+#hoArc{stroke:var(--warn);transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset 1s linear}
+#hoTime{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;font-weight:600;color:var(--warn)}
+.hob-t{font-size:13.5px;font-weight:600}
+.hob-s{font-size:12px;color:var(--ink2);margin-top:1px}
+.hob-actions{display:flex;gap:7px;margin-left:auto;flex:none}
+
+/* ================= overlays ================= */
+#toasts{position:fixed;top:60px;right:14px;z-index:120;display:flex;flex-direction:column;gap:7px;width:330px;max-width:calc(100vw - 28px)}
+.toast{display:flex;gap:10px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);padding:12px 14px;box-shadow:var(--shadow);animation:tin .28s cubic-bezier(.2,1,.3,1) both}
+.toast.out{animation:tout .22s ease both}
+.toast .tt{font-size:13px;font-weight:700}
+.toast .tb{font-size:12.5px;color:var(--ink2);margin-top:2px;line-height:1.5}
+.toast .ic{margin-top:1px;width:15px;height:15px}
+.toast.ok .ic{color:var(--ok)}.toast.wa .ic{color:var(--warn)}.toast.bad .ic{color:var(--bad)}.toast.info .ic{color:var(--ink2)}
+#scrim{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 70%,transparent);z-index:130;display:none;align-items:center;justify-content:center}
+html[data-theme="dark"] #scrim{background:rgba(8,8,6,.65)}
+#scrim.show{display:flex;animation:fade .2s ease both}
+.modal{display:none;width:470px;max-width:92vw;max-height:86vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);padding:23px;box-shadow:var(--shadow);animation:mpop .2s ease both}
+.modal.show{display:block}
+.modal h3{font-size:16.5px;font-weight:700;display:flex;align-items:center;gap:9px}
+.modal h3 .ic{color:var(--ink)}
+.modal .ms{font-size:13.5px;color:var(--ink2);line-height:1.65;margin:9px 0 14px}
+.modal .ms b{color:var(--ink)}
+.mrow{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
+.mrow .btn{min-width:112px}
+.cogrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden;margin:14px 0}
+.cogrid div{background:var(--panel2);padding:11px 13px}
+.cogrid .k{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--ink3)}
+.cogrid .v{font-family:var(--mono);font-size:15px;margin-top:3px}
+.hgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px}
+.hcol h4{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--ink3);margin-bottom:7px}
+.hk{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12.5px;color:var(--ink2)}
+.hk kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--line2);border-radius:3px;padding:1px 5px;color:var(--ink)}
+.gl{padding:5px 0;border-bottom:1px solid var(--line)}
+.gl:last-child{border-bottom:none}
+.gl b{font-size:12.5px;display:block}
+.gl span{font-size:11.5px;color:var(--ink3);line-height:1.5;display:block;margin-top:1px}
+#palette{position:fixed;left:50%;top:12vh;transform:translateX(-50%);width:530px;max-width:94vw;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);box-shadow:var(--shadow);z-index:140;display:none;overflow:hidden;animation:mpop .16s ease both}
+#palette.show{display:block}
+.palin{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);color:var(--ink3)}
+#palInput{flex:1;background:none;border:none;font-size:14.5px}
+#palList{max-height:310px;overflow-y:auto;padding:6px}
+.pitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--r-s);color:var(--ink2);font-size:13.5px;cursor:pointer}
+.pitem .ic{color:var(--ink3);width:14px;height:14px}
+.pitem .ph{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink3)}
+.pitem.on{background:var(--panel3);color:var(--ink)}
+#drawerScrim{position:fixed;inset:0;background:rgba(8,8,6,.5);z-index:55;display:none}
+
+/* responsive */
+@media (max-width:1040px){.hero{grid-template-columns:1fr;gap:36px}.mock{max-width:580px}.loop{grid-template-columns:repeat(2,1fr);gap:20px}.featgrid{grid-template-columns:1fr}}
+@media (max-width:1000px){
+  body{overflow:auto}
+  #viewApp{height:auto;min-height:100vh}
+  #layout{flex-direction:column}
+  #center{height:70vh;min-height:430px;order:1}
+  #right{order:2;width:auto!important;border-left:none;border-top:1px solid var(--line);margin-right:0!important}
+  #right .pin{width:100%;height:auto}
+  .ops-pane{max-height:none;overflow:visible}
+  #left{position:fixed;left:0;top:52px;bottom:0;width:292px;z-index:60;margin-left:0!important;transform:translateX(-105%);transition:transform .25s ease;border-right:1px solid var(--line)}
+  body.drawer #left{transform:none;box-shadow:var(--shadow)}
+  body.drawer #drawerScrim{display:block}
+  .pin{width:292px}
+  .grip,.edgeTab{display:none!important}
+  #btnMenu{display:grid}
+  #opsTabs{overflow-x:auto}
+}
+#btnMenu{display:none}
+@media (max-width:860px){.incident .ttl{display:none}}
+@media (max-width:720px){.hclock{display:none}#hoBanner{flex-wrap:wrap}.hob-actions{margin-left:0;width:100%}.hgrid{grid-template-columns:1fr}.hstats{flex-wrap:wrap}#btnSb,#btnOps,.in-kbd{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ================= HERO ================= -->
+<div id="viewHero">
+  <nav class="hnav">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17 17 7" stroke="var(--warn)" stroke-width="2.6" stroke-linecap="round"/><circle cx="5.5" cy="18.5" r="2" fill="var(--warn)"/><circle cx="18.5" cy="5.5" r="2" fill="var(--warn)"/></svg>
+      <b>Baton</b>
+    </div>
+    <span class="sp"></span>
+    <a href="#loop" data-scroll>The loop</a>
+    <a href="#features" data-scroll>Why Baton</a>
+    <button class="icobtn themeBtn" aria-label="Toggle theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/></svg></button>
+    <button class="btn primary" id="navLaunch">Launch demo</button>
+  </nav>
+
+  <section class="hwrap hero">
+    <div>
+      <span class="kick">MULTIPLAYER AI · COLLABORATIVE AGENTS</span>
+      <h1>
+        <span class="ln"><i>Hand over the incident,</i></span>
+        <span class="ln"><i>not the <em>guesswork</em>.</i></span>
+      </h1>
+      <p class="sub">Baton is a live war-room where two humans and one agent share a single checkpointed memory. Anyone can watch, redirect, or take the baton — a successor agent resumes with <b>zero repeat questions</b>, and no room closes without an explicit ACK.</p>
+      <div class="ctas">
+        <button class="btn primary" id="ctaEnter">Enter the war-room<svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+        <button class="btn" id="ctaLoop">How the loop works</button>
+      </div>
+      <div class="hstats">
+        <span class="hstat g"><i></i>p50 ≤ 800 ms</span>
+        <span class="hstat g"><i></i>0 repeat questions</span>
+        <span class="hstat a"><i></i>409 close gate</span>
+        <span class="hstat a"><i></i>co-sign HITL</span>
+      </div>
+    </div>
+    <div class="mock">
+      <div class="mock-top">
+        <span class="mt">war-7f3a2c · INC-2041 · SEV1</span>
+        <span class="mlive"><i></i>LIVE</span>
+      </div>
+      <div class="mock-feed" id="mockFeed"></div>
+      <div class="mock-foot">
+        <span id="mockState">attaching…</span>
+        <span class="rail"><span class="runner"></span></span>
+        <span>p50 412ms · 0 repeat</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="hwrap sect" id="loop">
+    <div class="sect-h rv">
+      <h2>One loop, <em>five moves</em>.</h2>
+      <p>Every Baton session runs the same contract. The demo above plays it live; the war-room lets you drive every step yourself.</p>
+    </div>
+    <div class="loop">
+      <div class="lstep rv"><span class="n">01</span><b>Ask <span class="stag">S1</span></b><p>Anyone in the room asks in the feed — the agent answers with retrieval-backed citations.</p></div>
+      <div class="lstep rv" style="transition-delay:.06s"><span class="n">02</span><b>Cite <span class="stag">S1</span></b><p>Every answer carries scored sources you can open inline. Repeats come from the logbook.</p></div>
+      <div class="lstep rv" style="transition-delay:.12s"><span class="n">03</span><b>Co-sign <span class="stag">S3</span></b><p>Risky actions wait for two distinct humans on the same payload hash. Fail-closed, always.</p></div>
+      <div class="lstep rv" style="transition-delay:.18s"><span class="n">04</span><b>Hand off <span class="stag">S3</span></b><p>Baton out. Close returns 409 until the successor explicitly ACKs ownership.</p></div>
+      <div class="lstep rv" style="transition-delay:.24s"><span class="n">05</span><b>Resume <span class="stag">S2</span></b><p>The successor replays the checkpointed logbook and picks up with zero repeat questions.</p></div>
+    </div>
+  </section>
+
+  <section class="hwrap sect" id="features">
+    <div class="sect-h rv">
+      <h2>Built for the <em>3 a.m. page</em>.</h2>
+      <p>Not a chatbot with a sidebar — an operator console with guard rails where it hurts: memory, ownership, approvals, latency.</p>
+    </div>
+    <div class="featgrid">
+      <div class="feat rv">
+        <h3>The logbook is the memory.</h3>
+        <p>Every answer, decision and event is checkpointed. A successor — human or agent — resumes from the last checkpoint instead of starting over.</p>
+        <div class="fviz">
+          <ul class="term">
+            <li><span class="ta">baton-1</span> · rollback staged per SOP-003 · <span class="tw">co-sign 0/2</span></li>
+            <li><span class="tc">✓ checkpoint</span> ck_9f2 · 13 events · coverage 78%</li>
+            <li><span class="ta">baton-2</span> attached · replayed ck_9e1 → head · <span class="tc">0 repeat</span></li>
+            <li><span class="tc">✓ ACK</span> p.krishnan has the baton · close gate open</li>
+          </ul>
+          <div class="kvrow">Repeats are served from the logbook — <b>&nbsp;never re-queried</b></div>
+        </div>
+      </div>
+      <div class="feat rv" style="transition-delay:.07s">
+        <h3>Kill the agent. Nothing is lost.</h3>
+        <p>Detach the agent mid-incident and questions park instead of vanishing. Attach a successor: it replays the logbook, then answers everything that piled up.</p>
+        <div class="fviz">
+          <div class="mini-kill">
+            <span class="mk-chip dead">baton-1 · KILLED</span>
+            <svg class="ic" style="color:var(--ink3)" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+            <span class="mk-chip alive">baton-2 · RESUMED</span>
+          </div>
+          <div class="kvrow">Resume source: <b>&nbsp;logbook + push_index checkpoint</b></div>
+        </div>
+      </div>
+      <div class="feat rv" style="transition-delay:.04s">
+        <h3>Approvals fail closed.</h3>
+        <p>A rollback executes only with two distinct humans on the same payload hash inside a 10-minute window. Expire unsigned and the action cancels — never the reverse.</p>
+        <div class="fviz">
+          <div class="mini-cosign">
+            <span class="mring on"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+            <span class="mring on"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--ok);font-weight:600;letter-spacing:.06em">2/2 · EXECUTED</span>
+          </div>
+          <div class="kvrow">W = 10 min · <b>&nbsp;same payloadHash · distinct humans</b></div>
+        </div>
+      </div>
+      <div class="feat rv" style="transition-delay:.1s">
+        <h3>Latency is a contract.</h3>
+        <p>The query path is synchronous and small; the SLO is binding. A 20-query probe gates the build: p50 ≤ 800ms, p95 ≤ 2000ms — or it doesn't ship.</p>
+        <div class="fviz">
+          <ul class="term" style="animation:none">
+            <li style="opacity:1;animation:none"><span class="tc">✓ probe</span> 20/20 queries · p50 <span class="tc">412ms</span> · p95 <span class="tc">1380ms</span></li>
+            <li style="opacity:1;animation:none"><span class="tc">✓ verdict</span> SLO PASS · within 800 / 2000 budget</li>
+          </ul>
+          <div class="kvrow">Run the probe yourself in the <b>&nbsp;SLO tab</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="stackstrip rv">
+    <div class="stackin">
+      <span><b>Next.js 16</b> · app router</span>
+      <span><b>Liveblocks</b> · presence + storage</span>
+      <span><b>Moss server SDK</b> · 1 index</span>
+      <span><b>Gemini Flash</b> · guard-railed</span>
+      <span><b>Postgres</b> · SKIP LOCKED outbox</span>
+      <span><b>Vercel</b> · iad1 · fluid node</span>
+    </div>
+  </div>
+
+  <footer class="hfoot">
+    <span>Baton — shift-handoff war-room · Multiplayer AI &amp; Collaborative Agents track</span>
+    <span class="mono">demo · all state is local to your browser</span>
+  </footer>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="viewApp" hidden>
+  <header id="appHeader">
+    <button id="btnMenu" class="icobtn" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="abrand">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17 17 7" stroke="var(--warn)" stroke-width="2.6" stroke-linecap="round"/><circle cx="5.5" cy="18.5" r="2" fill="var(--warn)"/><circle cx="18.5" cy="5.5" r="2" fill="var(--warn)"/></svg>
+      <b>Baton</b>
+    </div>
+    <div class="incident" title="INC-2041 — checkout 5xx spike">
+      <span class="iid">INC-2041</span>
+      <span class="ttl">checkout 5xx spike</span>
+      <span class="sev">SEV1</span>
+    </div>
+    <span class="sp"></span>
+    <div class="mw">
+      <button id="pillMode"><span class="dot"></span><span id="pillTxt">LIVE</span></button>
+      <div id="modeMenu" role="menu">
+        <div class="mm-t">CHANNEL MODE</div>
+        <button class="mm-item on" data-m="live"><span class="rd"></span><span><b>Live</b><span class="d2">Full session — real retrieval, real latency accounting.</span></span></button>
+        <button class="mm-item" data-m="fixture"><span class="rd"></span><span><b>Fixture</b><span class="d2">?fixture=1 — canned SOP corpus, zero retrieval calls billed.</span></span></button>
+        <button class="mm-item" data-m="offline"><span class="rd"></span><span><b>Offline</b><span class="d2">?offline — feed stays readable; writes queue to the outbox.</span></span></button>
+        <div class="mm-warn">Switching back from Offline replays queued writes in order.</div>
+      </div>
+    </div>
+    <div class="avatars" title="arun.m — primary on-call (you) · priya.k — comms lane · baton-1 — war-room agent">
+      <span class="av">AR<span class="st"></span></span>
+      <span class="av">PK<span class="st"></span></span>
+      <span class="av bot">B1<span class="st"></span></span>
+    </div>
+    <button class="icobtn" id="btnSb" title="Toggle sidebar (⌘B)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16"/></svg></button>
+    <button class="icobtn" id="btnOps" title="Toggle ops panel (⌘J)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14.5 4v16"/></svg></button>
+    <button class="icobtn themeBtn" aria-label="Toggle theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/></svg></button>
+    <button class="icobtn" id="btnHelp" aria-label="Help"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.9c-.7.3-1 .8-1 1.6"/><path d="M12 16.6v.01"/></svg></button>
+    <div class="hclock"><b id="clockUTC">--:--:--</b><span id="incClock">INC+00:26</span></div>
+  </header>
+
+  <div id="sync"><span class="spin"></span><span id="syncTxt">RESUMING SESSION…</span></div>
+
+  <div id="layout">
+    <!-- LEFT -->
+    <aside id="left">
+      <div class="pin">
+        <div class="pinScroll">
+          <div>
+            <div class="sb-t">INCIDENT</div>
+            <div class="card">
+              <div class="inc-head"><span class="sev">SEV1</span><span class="ttl">Checkout 5xx spike</span></div>
+              <p class="inc-sub">~30% of checkout sessions erroring since 13:50 UTC. Deploy v41.8 is prime suspect.</p>
+              <div class="inc-rows">
+                <div class="r"><span>Owner</span><span id="sbOwner">arun.m</span></div>
+                <div class="r"><span>Deploy freeze</span><span class="tag-ok">ENGAGED</span></div>
+                <div class="r"><span>Rollback</span><span class="tag-wa" id="sbRb">STAGED · 0/2</span></div>
+                <div class="r"><span>Opened</span><span id="sbDur">26 min ago</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="sb-t">IN THE ROOM</div>
+            <div class="card" style="padding:7px 12px">
+              <div class="person"><span class="av">AR</span><div><div class="pn">arun.m</div><div class="pr">Primary on-call · you</div></div><span class="ps">OWNER</span></div>
+              <div class="person"><span class="av">PK</span><div><div class="pn">priya.k</div><div class="pr">Comms lane</div></div><span class="ps">ONLINE</span></div>
+              <div class="person"><span class="av bot">B1</span><div><div class="pn">baton-1 <i>· agent</i></div><div class="pr">Gemini Flash</div></div><span class="ps" id="sbAgent">BOOT</span></div>
+            </div>
+          </div>
+          <div id="guideCard">
+            <div id="guideHead">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></svg>
+              <b id="guideTitle">Try the loop</b>
+              <span id="guideCount">0/5</span>
+            </div>
+            <div class="card" style="margin-top:7px;padding:8px 12px">
+              <div class="gitem" id="g-ask"><span class="gbx">✓</span><span>Ask a question</span></div>
+              <div class="gitem" id="g-cite"><span class="gbx">✓</span><span>Open a citation</span></div>
+              <div class="gitem" id="g-sign"><span class="gbx">✓</span><span>Sign the rollback</span></div>
+              <div class="gitem" id="g-handoff"><span class="gbx">✓</span><span>Start a handoff</span></div>
+              <div class="gitem" id="g-ack"><span class="gbx">✓</span><span>Accept the baton</span></div>
+              <button class="g-dismiss" id="guideDismiss">hide checklist</button>
+            </div>
+          </div>
+          <div>
+            <div class="sb-t">ACTIONS</div>
+            <div class="sb-actions">
+              <button class="sb-btn" id="actCatchup"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Catch up on context</button>
+              <button class="sb-btn" id="actCommands"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></svg>All commands<kbd>⌘K</kbd></button>
+              <button class="sb-btn" id="actHelp"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.9c-.7.3-1 .8-1 1.6"/><path d="M12 16.6v.01"/></svg>Help &amp; glossary</button>
+              <button class="sb-btn" id="actCopy"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy room id</button>
+            </div>
+          </div>
+          <div class="sb-foot">
+            <div><b>war-7f3a2c</b> · iad1</div>
+            <div>moss · 1 index · 20 SOPs</div>
+            <div>pg outbox · reconciler 5m</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="grip" id="gripL" title="Drag to resize · double-click to reset"></div>
+
+    <!-- CENTER -->
+    <main id="center">
+      <div class="feedhead">
+        <span class="fh-t">WAR FEED · INC-2041</span>
+        <span id="evCount">— events</span>
+        <span class="sp"></span>
+        <button class="qc" id="btnCatchup2" style="font-size:12px">catch up</button>
+      </div>
+      <div id="hoBanner">
+        <span class="ringw">
+          <svg width="42" height="42" viewBox="0 0 42 42"><circle class="rb" cx="21" cy="21" r="16.5" fill="none" stroke-width="2.5"/><circle id="hoArc" cx="21" cy="21" r="16.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="103.7" stroke-dashoffset="0"/></svg>
+          <span id="hoTime">10:00</span>
+        </span>
+        <div>
+          <div class="hob-t">Baton is out — waiting for p.krishnan</div>
+          <div class="hob-s">Close is blocked (409) until the successor accepts ownership. Window: 10 min, fail-closed.</div>
+        </div>
+        <div class="hob-actions">
+          <button class="btn" id="btnCancelHo">Cancel</button>
+          <button class="btn primary" id="btnAckBanner">Take over</button>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0;position:relative">
+        <div id="scroll" style="flex:1;overflow-y:auto;min-height:0">
+          <div id="inner">
+            <div class="welcome" id="welcome">
+              <b><svg class="ic" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></svg>You joined mid-incident</b>
+              <p>Two humans and the Baton agent are already working a SEV1. Start typing to search the room's knowledge, open a citation, sign the staged rollback, or run a full handoff — the <b>Try the loop</b> checklist walks the demo.</p>
+              <button id="welcomeX" aria-label="Dismiss"><svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            </div>
+            <ol id="feed" style="list-style:none" aria-label="Incident event log"></ol>
+            <div id="typing"><span class="dots"><i></i><i></i><i></i></span><span id="typingWho">priya.k is typing</span></div>
+          </div>
+        </div>
+        <button id="jump">↓ Jump to latest</button>
+      </div>
+      <footer id="composer">
+        <div class="cin">
+          <div id="sug" role="listbox"></div>
+          <div class="chips">
+            <span class="chips-l">TRY</span>
+            <button class="qc" data-q="Why are we seeing 5xx on checkout?">why 5xx on checkout?</button>
+            <button class="qc" data-q="What's the rollback plan right now?">rollback plan?</button>
+            <button class="qc" data-q="Who do we escalate to and when?">escalation path?</button>
+          </div>
+          <form id="qForm" autocomplete="off">
+            <span class="sic"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+            <input id="qInput" type="text" spellcheck="false" placeholder="Ask the war-room…" disabled/>
+            <button type="button" class="in-kbd" id="kbdCmds" title="Command palette (⌘K)">⌘K</button>
+            <button id="sendBtn" type="submit" aria-label="Send" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button>
+          </form>
+          <div class="fstatus" id="fstatus" data-state="hints">
+            <span class="st-hints"><kbd>↵</kbd> ask · <kbd>↑↓</kbd> suggestions · <kbd>⌘K</kbd> commands · <kbd>?</kbd> help</span>
+            <span class="st-live"><span class="sdot"></span><span id="stLiveTxt">baton-1 is responding</span><span class="dots"><i></i><i></i><i></i></span></span>
+            <span class="st-off" id="queueNote">offline — writes buffer to the outbox, replay on reconnect</span>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <div class="grip" id="gripR" title="Drag to resize · double-click to reset"></div>
+
+    <!-- RIGHT -->
+    <aside id="right">
+      <div class="pin">
+        <div id="opsTabs">
+          <button class="ops-tab on" data-tab="agent">Agent</button>
+          <button class="ops-tab" data-tab="approval">Approval<i class="tdot" id="dotAppr"></i></button>
+          <button class="ops-tab" data-tab="handoff">Handoff<i class="tdot" id="dotHo"></i></button>
+          <button class="ops-tab" data-tab="slo">SLO<i class="tdot" id="dotSlo"></i></button>
+          <span id="tabInd"></span>
+        </div>
+        <div class="ops-pane on" id="pane-agent">
+          <div class="pane-t">baton-1</div>
+          <div class="pane-s">War-room agent · Gemini Flash · <span class="mono">war-7f3a2c</span></div>
+          <div class="stat-led"><span class="led" id="agLed"></span><span id="agStatus">BOOTING</span></div>
+          <div id="agTask">attaching to session…</div>
+          <div class="kv">
+            <div class="r"><span>Logbook coverage</span><span id="agCov">78%</span></div>
+            <div class="covbar"><i id="agCovBar" style="width:78%"></i></div>
+            <div class="r"><span>Last checkpoint</span><span id="agCk">ck_9f2</span></div>
+            <div class="r"><span>Repeat questions</span><span>0</span></div>
+            <div class="r"><span>Queries this session</span><span id="agQn">2</span></div>
+          </div>
+          <div class="pane-actions">
+            <button class="btn blk" id="btnCk">Write checkpoint now</button>
+            <button class="btn dgr blk" id="btnKill">Simulate agent kill (S2)</button>
+            <button class="btn primary blk" id="btnResume" style="display:none">Attach successor agent</button>
+          </div>
+          <p class="dim-note">Kill removes the agent mid-incident. A successor resumes from the checkpointed logbook — questions asked meanwhile are answered on attach, with zero repeat questions.</p>
+        </div>
+        <div class="ops-pane" id="pane-approval">
+          <div class="pane-t">Rollback v41.8 → v41.7</div>
+          <div class="pane-s">Two distinct humans on the same payload hash, inside a 10-minute window. Nothing executes unsigned.</div>
+          <div class="hashrow">
+            <svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><circle cx="8" cy="15.5" r="4"/><path d="M11 12.5 20 3.5"/><path d="M17.5 6.5l2.5 2.5"/></svg>
+            payloadHash&nbsp;<b>a94f06e9…d31c2</b>
+            <button id="copyHash" aria-label="Copy hash"><svg class="ic" style="width:12px;height:12px" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+          </div>
+          <div class="signers">
+            <div class="signer" id="sigYou">
+              <span class="ring"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+              <div><div class="sn">arun.m</div><div class="sr">Primary on-call · you</div></div>
+              <span class="ss" id="ssYou">WAITING</span>
+            </div>
+            <div class="signer" id="sigPri">
+              <span class="ring"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+              <div><div class="sn">priya.k</div><div class="sr">Comms lead</div></div>
+              <span class="ss" id="ssPri">WAITING</span>
+            </div>
+          </div>
+          <div id="apProg"><span id="apProgTxt">0 of 2 signatures</span><span class="bar"><i id="apBar"></i></span></div>
+          <p class="appnote">Fail-closed: if the second signature doesn't land within W=10m, the staged action cancels automatically. Every state change is written to the audit trail.</p>
+          <div class="pane-actions"><button class="btn primary blk" id="btnSign">Sign as arun.m</button></div>
+          <div id="apDone"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg><span id="apDoneTxt"></span></div>
+          <a class="lnk" id="lnkExpire" href="#">Expire window now (demo the fail-closed path)</a>
+        </div>
+        <div class="ops-pane" id="pane-handoff">
+          <div class="pane-t">Ownership</div>
+          <div class="pane-s">Handoffs are explicit, never ambient. The baton only moves when a successor ACKs — until then the room can't close.</div>
+          <div class="stepper">
+            <span class="stp on" id="st1"><span class="d"></span><em>LIVE</em></span>
+            <span class="sbar" id="sbar1"><i></i></span>
+            <span class="stp" id="st2"><span class="d"></span><em>PENDING</em></span>
+            <span class="sbar" id="sbar2"><i></i></span>
+            <span class="stp" id="st3"><span class="d"></span><em>ACKED</em></span>
+          </div>
+          <div class="ho-rows">
+            <div class="r"><span>Owner</span><span id="hoOwner">arun.m</span></div>
+            <div class="r"><span>State</span><span id="hoState" class="tag-ok">LIVE</span></div>
+            <div class="r"><span>Close gate</span><span id="hoGate">LOCKED until ACK</span></div>
+          </div>
+          <div class="pane-actions">
+            <button class="btn primary blk" id="btnHo">Initiate handoff</button>
+            <button class="btn dgr blk" id="btnClose">Close room…</button>
+          </div>
+        </div>
+        <div class="ops-pane" id="pane-slo">
+          <div class="pane-t">Query latency</div>
+          <div class="pane-s">Binding targets: p50 ≤ 800ms, p95 ≤ 2000ms over the session probe.</div>
+          <div class="tiles">
+            <div class="tile"><em>LAST</em><b><span id="ltLast">0</span><small>ms</small></b></div>
+            <div class="tile"><em>P50</em><b><span id="ltP50">0</span><small>ms</small></b></div>
+            <div class="tile"><em>P95</em><b><span id="ltP95">0</span><small>ms</small></b></div>
+          </div>
+          <span id="chipVerdict">NO PROBE YET</span>
+          <canvas id="spark" height="66"></canvas>
+          <div class="ltmeta"><span>n = <span id="ltN">2</span> queries</span><span>guides 800ms / 2000ms</span></div>
+          <div class="pane-actions"><button class="btn primary blk" id="btnProbe">Run 20-query probe</button></div>
+          <p class="dim-note">Fires 20 timed queries against the session, then recomputes p50/p95 and the SLO verdict — mirrors <span class="mono">scripts/latency-probe.mjs</span>.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- edge tabs -->
+<button class="edgeTab" id="sbEdge" title="Show sidebar (⌘B)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16"/></svg></button>
+<button class="edgeTab" id="opsEdge" title="Show ops panel (⌘J)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14.5 4v16"/></svg></button>
+
+<!-- overlays -->
+<div id="toasts" aria-live="polite"></div>
+<div id="scrim">
+  <div class="modal" id="modal-close" role="dialog" aria-modal="true">
+    <h3><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Close war-room</h3>
+    <p class="ms">You're closing <b>INC-2041</b> as <b id="closeWho">arun.m</b>. This seals the logbook, writes the close event to the audit trail, and freezes the session read-only. Ownership ACK is on record, so the gate is open.</p>
+    <div class="mrow">
+      <button class="btn" id="mCloseCancel">Cancel</button>
+      <button class="btn primary" id="mCloseConfirm">Close &amp; seal room</button>
+    </div>
+  </div>
+  <div class="modal" id="modal-seal" role="dialog" aria-modal="true">
+    <h3><svg class="ic" style="color:var(--ok)" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>Room sealed</h3>
+    <p class="ms">Ownership ACK recorded. The logbook is sealed and the close event is written to the audit trail. Context stays queryable read-only for the postmortem.</p>
+    <div class="cogrid">
+      <div><div class="k">DURATION</div><div class="v" id="coDur">—</div></div>
+      <div><div class="k">EVENTS</div><div class="v" id="coEv">—</div></div>
+      <div><div class="k">QUERIES</div><div class="v" id="coQ">—</div></div>
+      <div><div class="k">P50</div><div class="v" id="coP50">—</div></div>
+      <div><div class="k">P95</div><div class="v" id="coP95">—</div></div>
+      <div><div class="k">REPEAT Q</div><div class="v">0</div></div>
+    </div>
+    <div class="mrow">
+      <button class="btn" id="mCopyPm">Copy postmortem summary</button>
+      <button class="btn primary" id="mSealDismiss">View read-only feed</button>
+    </div>
+  </div>
+  <div class="modal" id="modal-help" role="dialog" aria-modal="true">
+    <h3><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.9c-.7.3-1 .8-1 1.6"/><path d="M12 16.6v.01"/></svg>How this room works</h3>
+    <div class="hgrid">
+      <div class="hcol">
+        <h4>SHORTCUTS</h4>
+        <div class="hk"><span>Ask a question</span><kbd>/</kbd></div>
+        <div class="hk"><span>Command palette</span><kbd>⌘K</kbd></div>
+        <div class="hk"><span>Toggle sidebar</span><kbd>⌘B</kbd></div>
+        <div class="hk"><span>Toggle ops panel</span><kbd>⌘J</kbd></div>
+        <div class="hk"><span>Help</span><kbd>?</kbd></div>
+        <div class="hk"><span>Close overlay</span><kbd>Esc</kbd></div>
+        <div class="hk" style="margin-top:7px"><span>Resize panels</span><kbd>drag grip</kbd></div>
+        <div class="hk"><span>Reset panel width</span><kbd>2×click grip</kbd></div>
+      </div>
+      <div class="hcol">
+        <h4>GLOSSARY</h4>
+        <div class="gl"><b>Logbook</b><span>The room's shared memory. Every answer, decision and event is checkpointed into it.</span></div>
+        <div class="gl"><b>Checkpoint</b><span>A save point (push_index). Successors resume from the latest one with zero repeat questions.</span></div>
+        <div class="gl"><b>Co-sign</b><span>Two distinct humans must sign the same payload hash before a staged action executes.</span></div>
+        <div class="gl"><b>W = 10 min</b><span>The signature window. Expire unsigned → the action cancels. Fail-closed.</span></div>
+        <div class="gl"><b>409 gate</b><span>A room with a pending handoff can't be closed until the successor ACKs ownership.</span></div>
+      </div>
+    </div>
+    <div class="mrow"><button class="btn primary" id="mHelpClose">Got it</button></div>
+  </div>
+</div>
+<div id="palette" role="dialog" aria-label="Command palette">
+  <div class="palin"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="palInput" placeholder="Run a command…" autocomplete="off"/></div>
+  <div id="palList"></div>
+</div>
+<div id="drawerScrim"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   BATON — hero + war-room console (static demo).
+   Next.js port map: feed → Room.tsx + Liveblocks storage · ask() →
+   POST /api/query · handoff/ACK → /api/handoff · probe →
+   scripts/latency-probe.mjs · HUD → GET /api/metrics.
+   ===================================================================== */
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,RM?0:ms));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad2=n=>String(n).padStart(2,'0');
+const fmtT=d=>pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes());
+const fmtTs=d=>pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds());
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const hexs=n=>{let s='';const c='0123456789abcdef';for(let i=0;i<n;i++)s+=c[Math.floor(Math.random()*16)];return s};
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const colA=(v,a)=>{const h=cssVar(v).replace('#','');return 'rgba('+parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16)+','+a+')'};
+function tween(el,to){
+  const from=parseFloat(el.dataset.v||'0')||0;
+  el.dataset.v=to;
+  if(RM||from===to){el.textContent=to;return}
+  const t0=performance.now(),dur=520;
+  (function step(t){
+    const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);
+    el.textContent=Math.round(from+(to-from)*e);
+    if(p<1)requestAnimationFrame(step);
+  })(t0);
+}
+const ICONS={
+ zap:'<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/>',
+ check:'<path d="M4 12.5l5 5L20 6.5"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+ shield:'<path d="M12 3l7 3v6c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
+ swap:'<path d="M3 8h13"/><path d="M13 4l4 4-4 4"/><path d="M21 16H8"/><path d="M11 20l-4-4 4-4"/>',
+ bot:'<rect x="4.5" y="9" width="15" height="10" rx="3"/><path d="M12 9V5.5"/><circle cx="12" cy="4.5" r="1"/><path d="M9.5 13.5h.01M14.5 13.5h.01"/>',
+ clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+ off:'<path d="M3 3l18 18"/><path d="M8.6 16.4a5 5 0 0 1 6.8 0"/><path d="M5.3 12.6a10 10 0 0 1 3.4-2.1"/><path d="M15.6 10.7a10 10 0 0 1 3.1 1.9"/>',
+ doc:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8l-4-5z"/><path d="M14 3v5h5"/>',
+ act:'<path d="M3 12h4l3 7 4-14 3 7h4"/>',
+ alert:'<path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><path d="M12 17.4v.1"/>',
+ search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'
+};
+
+/* ---------- state ---------- */
+const ROOM='war-7f3a2c';
+const INC_START=Date.now()-26*60000;
+const qp=new URLSearchParams(location.search);
+const S={
+  mode: qp.get('fixture')?'fixture':(qp.get('offline')?'offline':'live'),
+  state:'live', owner:'arun.m', sealed:false,
+  agentDown:false, pendingQ:[], probing:false,
+  events:0, ckId:'ck_9f2', cov:78, qn:2,
+  lat:[428,505], recent:[],
+  seen:new Map(), outbox:[],
+  app:{you:false,priya:false,done:false,executed:false,youAt:null,priyaAt:null},
+  decisions:['Deploy freeze engaged per SOP-006'],
+  guideDone:new Set(),
+  lw:288, rw:372, lOpen:true, rOpen:true,
+  lastGroup:null
+};
+try{const w=JSON.parse(localStorage.getItem('bt-w')||'{}');if(w.lw)S.lw=clamp(w.lw,232,440);if(w.rw)S.rw=clamp(w.rw,312,500)}catch(e){}
+try{const u=JSON.parse(localStorage.getItem('bt-ui')||'{}');if(u.l===false)S.lOpen=false;if(u.r===false)S.rOpen=false}catch(e){}
+
+/* ---------- seed corpus ---------- */
+const DOCS={
+'SOP-001':{t:'Sev1 triage',k:'runbook',p:'P0',x:'Declare Sev1 when a customer-facing failure affects more than 5% of traffic or the money path. Page primary and secondary within 2 minutes, establish blast radius by region and endpoint, freeze all deploys, open the war-room and start the incident log. Assign a comms lane so the troubleshooting lane stays quiet. First mitigation beats perfect diagnosis — if a safe rollback exists, stage it while investigating.'},
+'SOP-003':{t:'Rollback runbook',k:'runbook',p:'P0',x:'Preconditions: incident correlated with a deploy inside the last 60 minutes and the previous build is green. Stage the rollback without executing it and open a co-sign approval carrying the target version and payload hash. Require two distinct human signatures inside the 10-minute window. Execute during a traffic lull after draining canary, then watch 5xx rate and p95 latency for 10 minutes post-roll and record exact commands and timings in the logbook.'},
+'SOP-005':{t:'Shift handoff template',k:'template',p:'P0',x:'Handoff is explicit, never ambient. The outgoing owner posts incident id, current state, the last three decisions with rationale, open threads, staged-but-unexecuted actions and pending approvals with payload hashes. The successor must ACK ownership in the war-room; the room cannot close on a pending handoff (409). Until ACK the outgoing owner stays accountable. After ACK the successor resumes from the checkpointed logbook — zero repeat questions.'},
+'SOP-006':{t:'Deploy freeze',k:'runbook',p:'P0',x:'During Sev1 all deploys freeze: the CI merge queue pauses, feature flags default to current values, and infrastructure changes require the incident commander\u2019s explicit ok. The freeze lifts only after 5xx rate holds under 0.5% for 15 minutes and the war-room records a stability note. Breaking a freeze is an audit event with the actor id attached.'},
+'SOP-008':{t:'Cache stampede',k:'runbook',p:'P1',x:'Symptoms: a latency cliff plus thundering origin traffic right after a hot key expiry or cache restart. Mitigate with request coalescing, raise TTLs on affected keys with jittered expiry, and pre-warm the top keys before any restart. If origin is already saturated, serve stale-while-revalidate instead of letting requests through. Verify recovery by watching origin QPS return to baseline before closing the thread.'},
+'SOP-014':{t:'5xx spike',k:'runbook',p:'P0',x:'A sudden 5xx rate above 2% is an availability incident. First five minutes: check the last deploy, the last config change, and upstream health — database, cache, auth. Compare error bodies: 502/504 points at upstreams or connection pools; 500 with stack traces points at code. If errors cluster on a single dependency, fail it over per its own runbook instead of rolling back the app. Attach the top ten error signatures to the war-room before proposing mitigation.'},
+'SOP-015':{t:'Latency SLO burn',k:'runbook',p:'P1',x:'When p50 exceeds 800ms or p95 exceeds 2000ms on the query path, burn rate is computed over a one-hour window. Burn above 2x opens a Sev2: identify the slow segment with the tracing HUD and check for a cache stampede. Burn above 10x escalates to Sev1. Never raise timeouts as a mitigation before naming the saturated resource — CPU, pool, or downstream quota. Log probe numbers every five minutes.'},
+'SOP-016':{t:'Auth outage',k:'runbook',p:'P0',x:'Auth failures cascade: treat token-endpoint 5xx as Sev1 even when the user count looks low, since retries amplify load. Extend token grace windows before restarting the auth service — restarts invalidate in-flight sessions. Walk the dependency graph in order: key management service, then session store, then token signer. Never rotate signing keys during an active auth incident.'},
+'SOP-019':{t:'Postmortem template',k:'template',p:'P2',x:'Draft within 48 hours while the logbook is fresh. Structure: timeline from first signal to close, contributing factors rather than a single root cause, what the dashboards missed, and action items with owners and due dates. Include the exact p50/p95 at declaration and at mitigation. Blameless: name systems and decisions, never people.'},
+'SOP-020':{t:'Escalation matrix',k:'matrix',p:'P0',x:'Sev1: page primary immediately, secondary at 5 minutes without progress, service owner at 10, VP at 20 for money-path outages. Sev2: primary only; escalate after 30 minutes or if SLO burn crosses 2x. Approval escalations fail closed — a co-sign that cannot gather two signatures inside its window cancels the staged action; it never executes unsigned. Every escalation and expiry lands in the audit log.'}
+};
+
+/* ---------- intents ---------- */
+const INTENTS=[
+{label:'Diagnose the 5xx spike',example:'Why are we seeing 5xx on checkout?',kw:['5xx','error','spike','outage','502','504','checkout','blast'],
+ a:"Blast radius first, suspects second. The error body is 502/504-dominant, which points upstream — DB pool, cache, auth health — before any code-level theory (SOP-014).\n\nThe deploy freeze is already engaged (SOP-006), so the merge queue can't add noise. Attach the top-10 error signatures here and compare against v41.8; if a single dependency is saturating, fail it over rather than rolling the app.",
+ docs:['SOP-014','SOP-001','SOP-006'],sc:[0.94,0.91,0.77]},
+{label:'Rollback readiness',example:'What\u2019s the rollback plan right now?',kw:['rollback','revert','v41','staged','plan'],
+ a:"Rollback to v41.7 is staged, not executed — deliberately. SOP-003 gates execution on a co-sign: two distinct humans, same payloadHash, inside the 10-minute window. It's sitting in the Approval tab now.\n\nOnce co-signed: drain canary, execute, then watch 5xx and p95 for a full ten minutes before anyone claims stability. Everything lands in the logbook for the postmortem.",
+ docs:['SOP-003','SOP-020'],sc:[0.93,0.78]},
+{label:'Handoff & ACK policy',example:'How does handoff ownership work?',kw:['handoff','shift','successor','ack','baton','ownership','409'],
+ a:"Handoff is explicit, never ambient. SOP-005: the outgoing owner posts state, the last three decisions, open threads and staged approvals with payload hashes — then the successor ACKs ownership in this room.\n\nUntil that ACK nothing moves and close returns 409, fail-closed. After the ACK the successor resumes from the checkpointed logbook with zero repeat questions.",
+ docs:['SOP-005','SOP-020'],sc:[0.95,0.74]},
+{label:'Latency & SLO burn',example:'How is our latency SLO doing?',kw:['latency','p50','p95','slow','slo','burn'],
+ a:"Live numbers are in the SLO tab: p50 inside the 800ms target and p95 inside 2s, so burn is sub-threshold on the query path. SOP-015 wants burn recomputed over a one-hour window before escalating — above 2x opens a Sev2.\n\nIf it degrades, check stampede first (SOP-008): coalescing and stale-while-revalidate beat timeout bumps every time. Never raise timeouts before naming the saturated resource.",
+ docs:['SOP-015','SOP-008'],sc:[0.92,0.85]},
+{label:'Escalation path',example:'Who do we escalate to and when?',kw:['escalate','escalation','page','on-call','sev','matrix','who'],
+ a:"SOP-020, Sev1 column: primary paged at declaration — that's you; secondary at 5 minutes without progress; service owner at 10; VP only if the money path is still down at 20.\n\nApproval escalations fail closed: a co-sign that can't gather two signatures inside its window cancels the staged action — it never executes unsigned. Every step lands in the audit log.",
+ docs:['SOP-020'],sc:[0.96]},
+{label:'Auth outage play',example:'What about auth token failures?',kw:['auth','login','token','session','kms'],
+ a:"Auth failures amplify — retries against a dying token endpoint turn a small incident large. SOP-016: extend token grace windows before any restart, since restarts invalidate in-flight sessions.\n\nWalk the dependency graph in order: KMS, then session store, then the token signer. Signing keys never rotate mid-incident — that's postmortem-window work.",
+ docs:['SOP-016','SOP-014'],sc:[0.9,0.72]},
+{label:'Cache stampede check',example:'Is this a cache stampede?',kw:['cache','stampede','coalesc','origin','qps','warm'],
+ a:"That matches SOP-008 — a latency cliff right after hot-key expiry is classic stampede behavior. Mitigation order: request coalescing, jittered TTLs on the affected keys, pre-warm the top keys before any restart.\n\nPriya's pre-warm should show origin QPS bending back to baseline — verify that before this thread closes, and serve stale-while-revalidate in the meantime.",
+ docs:['SOP-008'],sc:[0.94]},
+{label:'Postmortem structure',example:'How do we structure the postmortem?',kw:['postmortem','retro','blameless','cause','structure'],
+ a:"SOP-019: draft within 48 hours while the logbook is fresh. Timeline from first signal to close, contributing factors instead of a single root cause, what the dashboards missed, and action items with owners and dates.\n\nInclude the exact p50/p95 at declaration and at mitigation — the SLO tab already logged both. Blameless: name systems and decisions, never people.",
+ docs:['SOP-019'],sc:[0.93]},
+{label:'Deploy freeze rules',example:'Can we still ship during the freeze?',kw:['freeze','deploy','ship','merge','ci'],
+ a:"Freeze is engaged per SOP-006 — CI merge queue paused, flags pinned to current values, infra changes gated on your explicit ok. It lifts after 5xx holds under 0.5% for 15 minutes plus a stability note in the logbook.\n\nBreaking the freeze mid-Sev1 is an audit event with your id attached, so anything urgent goes through as a recorded exception.",
+ docs:['SOP-006'],sc:[0.95]},
+{label:'Catch-up & resume',example:'Catch me up on context so far',kw:['catch','up','context','checkpoint','logbook','resume','missed'],
+ a:"Everything is checkpointed — the last push_index wrote the full decision trail, and coverage climbs with every event. A successor, human or agent, resuming here should need zero repeat questions.\n\nUse Catch up for the recall summary, or initiate a handoff — the ACK flow lists exactly what resumes: events, coverage, staged approvals.",
+ docs:['SOP-005','SOP-019'],sc:[0.88,0.7]}
+];
+const FALLBACK={a:"Working from the triage runbooks. Sev1 posture: blast radius by endpoint and cohort; last deploy and last config change as prime suspects; freeze engaged so the queue stays quiet (SOP-001, SOP-014).\n\nGive me a sharper angle — rollback readiness, escalation, latency burn, cache, or the handoff state — and I'll pull the specific runbook with citations.",docs:['SOP-001','SOP-014'],sc:[0.86,0.79]};
+function matchIntent(q){
+  const ql=q.toLowerCase();let best=null,bs=0;
+  for(const it of INTENTS){
+    let s=0;
+    for(const w of it.kw)if(ql.indexOf(w)>=0)s++;
+    if(s>bs){bs=s;best=it}
+  }
+  return bs>0?best:FALLBACK;
+}
+
+/* ============================================================ THEME */
+function syncThemeIco(){
+  const light=document.documentElement.dataset.theme==='light';
+  const svg=light
+    ?'<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/>'
+    :'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>';
+  $$('.themeBtn svg').forEach(s=>{s.innerHTML=svg});
+}
+ $$('.themeBtn').forEach(b=>b.addEventListener('click',()=>{
+  const next=document.documentElement.dataset.theme==='light'?'dark':'light';
+  document.documentElement.dataset.theme=next;
+  try{localStorage.setItem('bt-theme',next)}catch(e){}
+  syncThemeIco();drawSpark();
+}));
+syncThemeIco();
+
+/* ============================================================ PANELS */
+function applyPanels(){
+  document.documentElement.style.setProperty('--lw',S.lw+'px');
+  document.documentElement.style.setProperty('--rw',S.rw+'px');
+  document.body.classList.toggle('l-off',!S.lOpen);
+  document.body.classList.toggle('r-off',!S.rOpen);
+  $('#btnSb').classList.toggle('dim',!S.lOpen);
+  $('#btnOps').classList.toggle('dim',!S.rOpen);
+}
+function savePanels(){try{localStorage.setItem('bt-w',JSON.stringify({lw:S.lw,rw:S.rw}));localStorage.setItem('bt-ui',JSON.stringify({l:S.lOpen,r:S.rOpen}))}catch(e){}}
+function setLeft(open){S.lOpen=open;applyPanels();savePanels()}
+function setRight(open){S.rOpen=open;applyPanels();savePanels();if(open)setTimeout(()=>{moveInd();drawSpark()},340)}
+ $('#btnSb').addEventListener('click',()=>setLeft(!S.lOpen));
+ $('#btnOps').addEventListener('click',()=>setRight(!S.rOpen));
+ $('#sbEdge').addEventListener('click',()=>setLeft(true));
+ $('#opsEdge').addEventListener('click',()=>setRight(true));
+applyPanels();
+function makeGrip(el,which){
+  let sx=0,sw=0,on=false;
+  el.addEventListener('pointerdown',e=>{
+    e.preventDefault();on=true;sx=e.clientX;sw=which==='l'?S.lw:S.rw;
+    el.classList.add('act');document.body.classList.add('dragging');
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!on)return;
+    let d=e.clientX-sx;
+    if(which==='r')d=-d;
+    const min=which==='l'?232:312, max=which==='l'?440:500;
+    const w=clamp(sw+d,min,max);
+    if(which==='l')S.lw=w;else S.rw=w;
+    document.documentElement.style.setProperty(which==='l'?'--lw':'--rw',w+'px');
+  });
+  const done=()=>{
+    if(!on)return;on=false;
+    el.classList.remove('act');document.body.classList.remove('dragging');
+    savePanels();moveInd();drawSpark();
+  };
+  el.addEventListener('pointerup',done);
+  el.addEventListener('pointercancel',done);
+  el.addEventListener('dblclick',()=>{
+    if(which==='l')S.lw=288;else S.rw=372;
+    applyPanels();savePanels();moveInd();drawSpark();
+    toast('info','Width reset','Panel back to default size.');
+  });
+}
+makeGrip($('#gripL'),'l');
+makeGrip($('#gripR'),'r');
+
+/* ============================================================ VIEWS + HERO */
+let booted=false,appShown=false,heroActive=true,mockRun=false;
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+function revealScan(){$$('.rv').forEach(el=>{if(!el.classList.contains('in'))io.observe(el)})}
+revealScan();
+ $$('[data-scroll]').forEach(a=>a.addEventListener('click',e=>{
+  e.preventDefault();
+  const t=$(a.getAttribute('href'));
+  if(t)t.scrollIntoView({behavior:RM?'auto':'smooth'});
+}));
+ $('#ctaLoop').addEventListener('click',()=>{const t=$('#loop');if(t)t.scrollIntoView({behavior:RM?'auto':'smooth'})});
+ $('#navLaunch').addEventListener('click',enterApp);
+ $('#ctaEnter').addEventListener('click',enterApp);
+async function enterApp(){
+  if(appShown)return;
+  heroActive=false;
+  const h=$('#viewHero'),a=$('#viewApp');
+  h.classList.add('leaving');
+  await sleep(260);
+  h.hidden=true;h.classList.remove('leaving');
+  a.hidden=false;a.classList.add('entering');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>a.classList.remove('entering')));
+  appShown=true;
+  if(!booted){booted=true;boot()}
+  else{moveInd();drawSpark()}
+  setTimeout(()=>{moveInd();drawSpark()},320);
+}
+/* hero live mock */
+function mockSet(t){const e=$('#mockState');if(e)e.textContent=t}
+function mSys(kind,tag,txt){
+  const d=document.createElement('div');d.className='mrow m-sys'+(kind==='warn'?' warn':'');
+  d.innerHTML='<b>'+tag+'</b><span>'+txt+'</span>';
+  $('#mockFeed').appendChild(d);
+}
+function mHum(name,txt){
+  const d=document.createElement('div');d.className='mrow m-hum';
+  d.innerHTML='<span class="m-av">'+esc(name.split('.')[0].slice(0,2).toUpperCase())+'</span><div><div class="mh">'+esc(name)+'</div><p>'+esc(txt)+'</p></div>';
+  $('#mockFeed').appendChild(d);
+}
+function mAgent(thinking,txt,cites){
+  const d=document.createElement('div');d.className='mrow m-agt';
+  d.innerHTML='<span class="m-av">B1</span><div class="mbox"><div class="mh">'+(thinking&&thinking!=='baton-1'?'<span class="thinkdots"><i></i><i></i><i></i></span>':'')+'baton-1 <span class="tag">AGENT</span></div>'+(txt?'<p>'+esc(txt)+'</p>':'')+
+    (cites?'<div class="m-cites">'+cites.map(c=>'<span class="m-cite"><b>'+c[0]+'</b> '+c[1].toFixed(2)+'</span>').join('')+'</div>':'')+'</div>';
+  $('#mockFeed').appendChild(d);
+}
+function mBan(title,sub){
+  const d=document.createElement('div');d.className='mrow m-ban';
+  d.innerHTML='<b>'+title+'</b><span>'+sub+'</span>';
+  $('#mockFeed').appendChild(d);
+}
+async function startMock(){
+  if(mockRun)return;mockRun=true;
+  while(heroActive){
+    const f=$('#mockFeed');if(f)f.innerHTML='';
+    mockSet('resuming session war-7f3a2c…');
+    await sleep(800);if(!heroActive)break;
+    mSys('ok','ROOM','INC-2041 opened · SEV1 · owner arun.m');
+    await sleep(850);if(!heroActive)break;
+    mHum('arun.m','Checkout 5xx spike — starting triage, freezing deploys.');
+    await sleep(950);if(!heroActive)break;
+    mAgent('querying…','');
+    mockSet('agent retrieving…');
+    await sleep(1250);if(!heroActive)break;
+    mAgent('baton-1','502/504-dominant → upstreams before code. DB pool, cache, auth health; v41.8 is prime suspect. Freeze stays on.',[['SOP-014',0.94],['SOP-003',0.89]]);
+    mockSet('answer checkpointed · 0 repeat');
+    await sleep(1250);if(!heroActive)break;
+    mSys('warn','HITL','rollback staged · co-sign 0/2 · W=10m');
+    await sleep(1050);if(!heroActive)break;
+    mBan('BATON OUT','waiting for successor ACK · close returns 409');
+    mockSet('handoff pending…');
+    await sleep(1500);if(!heroActive)break;
+    mSys('ok','ACK','p.krishnan took the baton · resume from ck_9f2 · 0 repeat questions');
+    mockSet('successor resumed · loop complete');
+    await sleep(3200);
+  }
+  mockRun=false;
+}
+startMock();
+
+/* ============================================================ FEED / CHAT */
+const feedEl=$('#feed'),scrollEl=$('#scroll'),typingEl=$('#typing'),typingWho=$('#typingWho');
+let stick=true;
+function pin(force){if(stick||force)scrollEl.scrollTop=scrollEl.scrollHeight}
+scrollEl.addEventListener('scroll',()=>{
+  stick=scrollEl.scrollHeight-scrollEl.scrollTop-scrollEl.clientHeight<140;
+  $('#jump').classList.toggle('show',!stick);
+});
+ $('#jump').addEventListener('click',()=>{stick=true;$('#jump').classList.remove('show');scrollEl.scrollTop=scrollEl.scrollHeight});
+function bump(){S.events++;$('#evCount').textContent=S.events+' events';pin()}
+function feedNode(html,cls){
+  const n=document.createElement('div');
+  if(cls)n.className=cls;
+  n.innerHTML=html;
+  feedEl.appendChild(n);
+  return n;
+}
+function initials(name){return name.split('.')[0].slice(0,2).toUpperCase()}
+function addHuman(name,text,t,opts){
+  opts=opts||{};
+  const ts=t||new Date();
+  S.lastGroup=null;
+  const g=feedNode(
+    '<div class="mg-av">'+esc(initials(name))+'</div>'+
+    '<div class="mg-col"><div class="mg-head"><b>'+esc(name)+'</b>'+(opts.you?'<span class="rt">you</span>':'')+'<time>'+fmtT(ts)+'</time></div><div class="mg-rows"></div></div>','mg');
+  bump();
+  const rows=g.querySelector('.mg-rows');
+  const row=document.createElement('div');row.className='mg-row';
+  row.innerHTML='<p class="mg-text">'+esc(text)+'</p>';
+  rows.appendChild(row);
+  S.lastGroup={author:name,rows:rows,ts:ts.getTime()};
+  return row;
+}
+function addSys(kind,tag,text){
+  S.lastGroup=null;
+  const kc={ck:'k-ok',executed:'k-ok',audit:'k-ok',approval:'k-wa',handoff:'k-wa',deny:'k-bad',presence:'',init:''}[kind]||'';
+  const icn={ck:'check',executed:'check',audit:'lock',approval:'shield',handoff:'swap',deny:'lock',presence:'zap',init:'zap'}[kind]||'zap';
+  feedNode('<svg class="ic" viewBox="0 0 24 24">'+ICONS[icn]+'</svg><b>'+tag+'</b><span>— '+text+'</span>','sysline '+kc);
+  bump();
+}
+function addDivider(label){S.lastGroup=null;feedNode('<span>'+label+'</span>','divider');bump()}
+
+/* ---------- agent rendering ---------- */
+let busyN=0;
+function setAgentLed(cls,status,task){
+  $('#agLed').className='led '+cls;
+  $('#agStatus').textContent=status;
+  $('#agTask').textContent=task;
+  $('#sbAgent').textContent=status;
+}
+function busyStart(){busyN++;setAgentLed('busy','STREAMING','retrieving · citing · writing to logbook');setFstate('live')}
+function busyEnd(){busyN=Math.max(0,busyN-1);if(!busyN&&!S.agentDown){setAgentLed('ok','IDLE','watching feed · checkpoint armed')}refreshFstatus()}
+function agentCard(){
+  S.lastGroup=null;
+  const g=feedNode(
+    '<div class="mg-av bot">'+ICONS.bot.replace('<svg','<svg class="ic" style="width:14px;height:14px"')+'</div>'+
+    '<div class="mg-col"><div class="mg-head"><b>baton-1</b><span class="rt">agent</span><span class="mdl">gemini-flash</span><time>'+fmtT(new Date())+'</time></div>'+
+    '<div class="ablock"><div class="think"><span class="dots"><i></i><i></i><i></i></span><span class="ttxt">…</span></div><div class="atext"></div></div></div>','mg');
+  bump();
+  return{ablock:g.querySelector('.ablock'),
+    think:t=>{const e=g.querySelector('.ttxt');if(e)e.textContent=t},
+    endThink:()=>{const e=g.querySelector('.think');if(e)e.remove()},
+    atext:g.querySelector('.atext')};
+}
+async function typeInto(box,text){
+  if(RM){box.innerHTML=text.split('\n\n').map(p=>'<p>'+esc(p)+'</p>').join('');return}
+  for(const p of text.split('\n\n')){
+    const pe=document.createElement('p');box.appendChild(pe);
+    const c=document.createElement('span');c.className='caret';pe.appendChild(c);
+    for(let i=0;i<p.length;i+=2){
+      c.insertAdjacentText('beforebegin',p.slice(i,i+2));
+      if(i%20===0)pin();
+      await sleep(10);
+    }
+    c.remove();
+  }
+}
+function addCites(card,docs,scs){
+  const w=document.createElement('div');w.className='cites';
+  docs.forEach((id,i)=>{
+    const d=DOCS[id];if(!d)return;
+    const sc=scs[i];
+    const b=document.createElement('button');
+    b.type='button';b.className='cite';b.style.animationDelay=(i*60)+'ms';
+    b.dataset.id=id;b.dataset.sc=sc;
+    b.innerHTML='<span class="cid">'+id+'</span><span class="cn">'+esc(d.t)+'</span><span class="sc">'+sc.toFixed(2)+'</span>';
+    w.appendChild(b);
+  });
+  card.appendChild(w);
+}
+function metaLine(p){
+  let head;
+  if(p.logbook)head='<b>logbook hit</b> · no re-query';
+  else if(p.fixture)head='<b>fixture</b> · no moss call';
+  else head='retrieval <b>'+p.ms+'ms</b>';
+  const n=p.docs?p.docs.length:0;
+  return '<div class="ameta"><svg class="ic ckic" style="width:11px;height:11px" viewBox="0 0 24 24">'+ICONS.check+'</svg>'+head+' · '+n+' sources · checkpointed</div>';
+}
+function agentInstant(pack,t){
+  S.lastGroup=null;
+  const g=feedNode(
+    '<div class="mg-av bot">'+ICONS.bot.replace('<svg','<svg class="ic" style="width:14px;height:14px"')+'</div>'+
+    '<div class="mg-col"><div class="mg-head"><b>baton-1</b><span class="rt">agent</span><time>'+fmtT(t)+'</time></div>'+
+    '<div class="ablock"><div class="atext">'+pack.text.split('\n\n').map(p=>'<p>'+esc(p)+'</p>').join('')+'</div></div></div>','mg');
+  const c=g.querySelector('.ablock');
+  addCites(c,pack.docs,pack.sc);
+  c.insertAdjacentHTML('beforeend',metaLine(pack));
+  bump();
+}
+/* inline citation source */
+feedEl.addEventListener('click',e=>{
+  const b=e.target.closest('.cite');if(!b)return;
+  const card=b.closest('.ablock');if(!card)return;
+  const id=b.dataset.id,sc=parseFloat(b.dataset.sc);
+  const d=DOCS[id];if(!d)return;
+  let src=card.querySelector('.citesrc');
+  if(src&&src.dataset.open===id){src.remove();return}
+  if(!src){src=document.createElement('div');src.className='citesrc';card.appendChild(src)}
+  src.dataset.open=id;
+  src.innerHTML='<div class="csh"><b>'+esc(d.t)+'</b><span>'+id+' · score '+sc.toFixed(2)+'</span></div>'+
+    '<div class="csbar"><i style="width:'+(sc*100)+'%"></i></div>'+
+    '<div class="cstags"><span>'+d.k+'</span><span>'+d.p+'</span><span>data/sops/'+id+'.md</span></div>'+
+    '<p>'+esc(d.x)+'</p>';
+  markGuide('cite');
+});
+
+/* ---------- guide ---------- */
+function markGuide(id){
+  if(S.guideDone.has(id))return;
+  S.guideDone.add(id);
+  const el=$('#g-'+id);if(el)el.classList.add('done');
+  $('#guideCount').textContent=S.guideDone.size+'/5';
+  if(S.guideDone.size===5){
+    $('#guideTitle').textContent='Loop complete — demo ready';
+    toast('ok','Full loop complete','Ask → cite → co-sign → handoff → ACK. That\u2019s the whole S1/S2/S3 story.');
+  }
+}
+ $('#guideDismiss').addEventListener('click',()=>{$('#guideCard').style.display='none'});
+ $('#welcomeX').addEventListener('click',()=>{$('#welcome').style.display='none'});
+
+/* ============================================================ COMPOSER + SEARCH */
+const qInput=$('#qInput'),sugBox=$('#sug'),sendBtn=$('#sendBtn'),fstatusEl=$('#fstatus');
+const PH_BASE='Ask the war-room…';
+let sugOpen=false,sugIdx=0,sugItems=[];
+
+/* send button: ghost until there's text, then solid ink with a pop */
+function syncSend(){sendBtn.classList.toggle('ready',qInput.value.trim().length>0)}
+
+/* status line: hints / live / offline */
+function setFstate(s){fstatusEl.dataset.state=s}
+function refreshFstatus(){setFstate(S.mode==='offline'&&!S.sealed?'off':'hints')}
+
+function buildSug(){
+  const raw=qInput.value.trim(),ql=raw.toLowerCase();
+  sugItems=[];
+  if(raw){
+    const hit=S.seen.get(ql);
+    if(hit)sugItems.push({t:'log',l:'Logbook hit — zero repeat questions',s:'answered '+hit.at,q:raw});
+    for(const it of INTENTS){
+      if((it.label+' '+it.example+' '+it.kw.join(' ')).toLowerCase().indexOf(ql)>=0){
+        sugItems.push({t:'zap',l:it.label,s:it.example,q:it.example});
+        if(sugItems.length>=6)break;
+      }
+    }
+    for(const rq of S.recent){
+      if(rq.toLowerCase().indexOf(ql)>=0&&!sugItems.some(x=>x.q===rq)){
+        sugItems.push({t:'clock',l:rq,s:'recent',q:rq});
+        if(sugItems.length>=7)break;
+      }
+    }
+  }else{
+    if(S.recent.length){
+      S.recent.slice(0,5).forEach(rq=>sugItems.push({t:'clock',l:rq,s:'recent',q:rq}));
+    }else{
+      [0,1,4].forEach(i=>sugItems.push({t:'zap',l:INTENTS[i].label,s:INTENTS[i].example,q:INTENTS[i].example}));
+    }
+  }
+  renderSug();
+}
+function renderSug(){
+  if(!sugItems.length||qInput.disabled){closeSug();return}
+  sugIdx=clamp(sugIdx,0,sugItems.length-1);
+  const hasVal=!!qInput.value.trim();
+  let html='<div class="sg-h">'+(hasVal?'SUGGESTED':(S.recent.length?'RECENT':'TRY ASKING'))+'</div>';
+  sugItems.forEach((it,i)=>{
+    const ic=it.t==='log'?'check':(it.t==='clock'?'clock':'zap');
+    html+='<button type="button" class="sg'+(it.t==='log'?' log':'')+(i===sugIdx?' on':'')+'" role="option" data-i="'+i+'" style="animation-delay:'+(i*28)+'ms">'+
+      '<svg class="ic" viewBox="0 0 24 24">'+ICONS[ic]+'</svg>'+
+      '<span class="sgl">'+esc(it.l)+'</span><span class="sgs">'+esc(it.s)+'</span></button>';
+  });
+  html+='<div class="sg-f">↑↓ navigate · ↵ ask · tab complete · esc close</div>';
+  sugBox.innerHTML=html;
+  sugBox.classList.add('open');
+  sugOpen=true;
+}
+function closeSug(){sugBox.classList.remove('open');sugOpen=false}
+sugBox.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('.sg');if(!b)return;
+  e.preventDefault();
+  const it=sugItems[parseInt(b.dataset.i,10)];
+  closeSug();
+  if(it)ask(it.q);
+});
+qInput.addEventListener('input',()=>{sugIdx=0;syncSend();buildSug()});
+qInput.addEventListener('focus',()=>{sugIdx=0;qInput.placeholder=PH_BASE;buildSug()});
+qInput.addEventListener('blur',()=>{setTimeout(closeSug,140)});
+qInput.addEventListener('keydown',e=>{
+  if(!sugOpen)return;
+  if(e.key==='ArrowDown'){e.preventDefault();sugIdx=(sugIdx+1)%sugItems.length;renderSug()}
+  else if(e.key==='ArrowUp'){e.preventDefault();sugIdx=(sugIdx-1+sugItems.length)%sugItems.length;renderSug()}
+  else if(e.key==='Enter'){e.preventDefault();const it=sugItems[sugIdx];closeSug();if(it)ask(it.q)}
+  else if(e.key==='Tab'){e.preventDefault();const it=sugItems[sugIdx];if(it){qInput.value=it.q;syncSend();sugIdx=0;buildSug()}}
+  else if(e.key==='Escape'){e.preventDefault();closeSug()}
+});
+ $('#kbdCmds').addEventListener('click',()=>palToggle(true));
+
+/* idle placeholder typewriter — cycles example questions when the field is untouched */
+(function phLoop(){
+  if(RM)return;
+  const items=['Why are we seeing 5xx on checkout?','How does the co-sign window work?','Catch me up on the incident so far','What happens if the handoff expires?'];
+  let i=0;
+  function ok(){return appShown&&!S.sealed&&!qInput.disabled&&document.activeElement!==qInput&&qInput.value===''&&!sugOpen}
+  (async function run(){
+    while(true){
+      await sleep(3400);
+      if(!ok()){qInput.placeholder=PH_BASE;continue}
+      const txt=items[i++%items.length];
+      for(let c=1;c<=txt.length;c++){if(!ok()){qInput.placeholder=PH_BASE;break}qInput.placeholder=txt.slice(0,c);await sleep(24)}
+      if(!ok()){qInput.placeholder=PH_BASE;continue}
+      await sleep(2100);
+      for(let c=txt.length;c>=0;c--){if(!ok())break;qInput.placeholder=txt.slice(0,c);await sleep(10)}
+      qInput.placeholder=PH_BASE;
+    }
+  })();
+})();
+
+/* ---------- ask / respond ---------- */
+async function ask(q,fromOutbox){
+  q=(q||'').trim();if(!q)return;
+  closeSug();
+  qInput.value='';syncSend();
+  if(S.sealed){toast('wa','Room sealed','The logbook is read-only. Reopen the session to continue.');return}
+  S.recent=[q].concat(S.recent.filter(x=>x!==q)).slice(0,6);
+  const row=addHuman(S.owner,q,new Date(),{you:true});
+  markGuide('ask');
+  if(S.mode==='offline'&&!fromOutbox){
+    row.closest('.mg').classList.add('dim');
+    row.insertAdjacentHTML('beforeend','<span class="qtag">QUEUED · OUTBOX</span>');
+    S.outbox.push({q:q,row:row});
+    toast('wa','Buffered offline','Write queued to the outbox — it replays in order on reconnect.');
+    return;
+  }
+  if(S.agentDown){
+    row.closest('.mg').classList.add('dim');
+    row.insertAdjacentHTML('beforeend','<span class="qtag">PARKED · NO AGENT ATTACHED</span>');
+    S.pendingQ.push({q:q,row:row});
+    toast('info','No agent attached','Question parked — the successor will answer it on resume.');
+    return;
+  }
+  await agentRespond(q);
+}
+async function agentRespond(q){
+  const sk=agentCard();busyStart();
+  const key=q.trim().toLowerCase();
+  const hit=S.seen.get(key);
+  let pack;
+  if(hit){
+    sk.think('logbook hit — resuming prior answer…');
+    await sleep(500);
+    pack={text:'Resuming from the logbook — this was answered at '+hit.at+' (zero repeat questions):\n\n'+hit.text,docs:hit.docs,sc:hit.sc,ms:0,logbook:true};
+  }else{
+    const it=matchIntent(q);
+    const ms=S.mode==='fixture'?Math.round(rnd(8,34)):Math.round(rnd(340,820)+(Math.random()<0.08?rnd(380,700):0));
+    sk.think(S.mode==='fixture'?'fixture corpus · canned docs…':'parsing logbook · querying moss session…');
+    await sleep(Math.min(ms,900));
+    pack={text:it.a,docs:it.docs,sc:it.sc,ms:ms,fixture:S.mode==='fixture'};
+    S.seen.set(key,{text:it.a,docs:it.docs,sc:it.sc,at:fmtT(new Date())});
+    if(S.mode==='live'){S.lat.push(ms);S.qn++;hud()}
+  }
+  sk.endThink();
+  await typeInto(sk.atext,pack.text);
+  addCites(sk.ablock,pack.docs,pack.sc);
+  sk.ablock.insertAdjacentHTML('beforeend',metaLine(pack));
+  busyEnd();pin(true);
+  $('#agQn').textContent=S.qn;
+}
+async function agentNote(text,opts){
+  opts=opts||{};
+  const sk=agentCard();busyStart();
+  sk.think(opts.thinking||'composing from logbook…');
+  await sleep(opts.d||600);
+  sk.endThink();
+  await typeInto(sk.atext,text);
+  if(opts.cites)addCites(sk.ablock,opts.cites.map(c=>c[0]),opts.cites.map(c=>c[1]));
+  if(opts.meta)sk.ablock.insertAdjacentHTML('beforeend','<div class="ameta">'+opts.meta+'</div>');
+  busyEnd();pin(true);
+}
+ $('#qForm').addEventListener('submit',e=>{e.preventDefault();const q=qInput.value;ask(q)});
+ $$('.qc[data-q]').forEach(b=>b.addEventListener('click',()=>ask(b.dataset.q)));
+
+/* ---------- SLO ---------- */
+function pctile(a,p){
+  if(!a.length)return 0;
+  const s=a.slice().sort((x,y)=>x-y);
+  const i=Math.max(0,Math.ceil(p*s.length)-1);
+  return s[Math.min(i,s.length-1)];
+}
+function hud(){
+  const a=S.lat,n=a.length;
+  tween($('#ltLast'),n?a[n-1]:0);
+  tween($('#ltP50'),n?pctile(a,.5):0);
+  tween($('#ltP95'),n?pctile(a,.95):0);
+  $('#ltN').textContent=n;
+  const chip=$('#chipVerdict');chip.classList.remove('pass','fail');
+  if(!n){chip.textContent='NO PROBE YET'}
+  else{
+    const pass=pctile(a,.5)<=800&&pctile(a,.95)<=2000;
+    chip.classList.add(pass?'pass':'fail');
+    chip.textContent=pass?'SLO PASS':'SLO FAIL — p95 over budget';
+  }
+  syncBadges();drawSpark();
+}
+function drawSpark(){
+  const c=$('#spark');if(!c)return;
+  const dpr=window.devicePixelRatio||1,w=c.clientWidth||0,h=66;
+  if(w<10)return;
+  c.width=w*dpr;c.height=h*dpr;
+  const x=c.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,w,h);
+  const Y=ms=>h-7-(Math.min(ms,2200)/2200)*(h-16);
+  const guide=(ms,col,lab)=>{
+    x.strokeStyle=col;x.setLineDash([3,4]);x.beginPath();x.moveTo(0,Y(ms));x.lineTo(w,Y(ms));x.stroke();x.setLineDash([]);
+    x.fillStyle=col;x.font='600 8px "IBM Plex Mono",monospace';x.fillText(lab,w-52,Y(ms)-4);
+  };
+  guide(800,colA('--ok',.55),'800');
+  guide(2000,colA('--bad',.55),'2.0s');
+  const q=S.lat.slice(-24);if(!q.length)return;
+  const step=(w-8)/q.length,bw=Math.min(8,step-3);
+  q.forEach((ms,i)=>{
+    const px=4+i*step;
+    x.fillStyle=ms<=800?colA('--ok',.75):ms<=2000?colA('--warn',.8):colA('--bad',.8);
+    x.fillRect(px,Y(ms),bw,Y(0)-Y(ms));
+  });
+}
+window.addEventListener('resize',()=>{moveInd();drawSpark()});
+async function runProbe(){
+  if(S.probing||S.sealed)return;
+  S.probing=true;const btn=$('#btnProbe');btn.disabled=true;
+  for(let i=1;i<=20;i++){
+    btn.textContent='Probing '+i+'/20…';
+    await sleep(140);
+    const r=Math.random();
+    const ms=r<0.72?Math.round(rnd(300,720)):r<0.92?Math.round(rnd(720,1200)):Math.round(rnd(1200,2100));
+    S.lat.push(ms);hud();
+  }
+  btn.disabled=false;btn.textContent='Run 20-query probe';S.probing=false;
+  const pass=pctile(S.lat,.5)<=800&&pctile(S.lat,.95)<=2000;
+  addSys(pass?'ck':'deny','PROBE','20-query probe · p50 '+pctile(S.lat,.5)+'ms · p95 '+pctile(S.lat,.95)+'ms · SLO '+(pass?'PASS':'FAIL'));
+  toast(pass?'ok':'bad','Probe complete','p50 '+pctile(S.lat,.5)+'ms / p95 '+pctile(S.lat,.95)+'ms — '+(pass?'within budget.':'p95 over the 2000ms budget.'));
+}
+ $('#btnProbe').addEventListener('click',runProbe);
+
+/* ---------- tabs ---------- */
+function moveInd(){
+  const t=$('#opsTabs .ops-tab.on'),ind=$('#tabInd');
+  if(!t||!ind)return;
+  ind.style.width=t.offsetWidth+'px';
+  ind.style.transform='translateX('+t.offsetLeft+'px)';
+}
+ $$('#opsTabs .ops-tab').forEach(t=>t.addEventListener('click',()=>{
+  $$('#opsTabs .ops-tab').forEach(x=>x.classList.remove('on'));
+  $$('.ops-pane').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  $('#pane-'+t.dataset.tab).classList.add('on');
+  moveInd();
+  if(t.dataset.tab==='slo')setTimeout(drawSpark,60);
+}));
+function gotoTab(name){$$('#opsTabs .ops-tab').forEach(x=>{if(x.dataset.tab===name)x.click()})}
+function syncBadges(){
+  $('#dotAppr').classList.toggle('attn',!S.app.done);
+  $('#dotHo').classList.toggle('attn',S.state==='pending');
+  const fail=S.lat.length>0&&!(pctile(S.lat,.5)<=800&&pctile(S.lat,.95)<=2000);
+  $('#dotSlo').classList.toggle('attn',fail);
+  $('#dotSlo').classList.toggle('red',fail);
+}
+
+/* ---------- modes ---------- */
+function syncModeUI(){
+  const pill=$('#pillMode');
+  pill.className='m-'+(S.sealed?'sealed':S.state==='pending'?'pending':S.mode);
+  $('#pillTxt').textContent=S.sealed?'SEALED':S.state==='pending'?'PENDING':S.mode.toUpperCase();
+  $$('#modeMenu .mm-item').forEach(b=>b.classList.toggle('on',b.dataset.m===S.mode));
+  document.body.classList.remove('drawer');
+  refreshFstatus();
+  $('#sync').classList.toggle('bad',S.mode==='offline');
+}
+const MENU=$('#modeMenu');
+ $('#pillMode').addEventListener('click',e=>{e.stopPropagation();MENU.classList.toggle('open')});
+MENU.addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>MENU.classList.remove('open'));
+ $$('#modeMenu .mm-item').forEach(b=>b.addEventListener('click',()=>{MENU.classList.remove('open');setMode(b.dataset.m)}));
+async function setMode(m){
+  if(S.sealed||m===S.mode)return;
+  const prev=S.mode;S.mode=m;syncModeUI();
+  addSys('presence','CHANNEL','mode → '+m.toUpperCase()+(m==='fixture'?' · ?fixture=1 · canned docs, no moss call':m==='offline'?' · ?offline · writes buffered':''));
+  if(m==='offline'){
+    $('#syncTxt').textContent='OFFLINE — writes buffer to the outbox (idb fallback) · replay on reconnect';
+    $('#sync').classList.add('show');
+    toast('wa','Offline','Feed stays readable; your writes queue locally and replay in order on reconnect.');
+  }else{
+    if(prev==='offline'){$('#sync').classList.remove('show');await replayOutbox()}
+    toast(m==='fixture'?'info':'ok',m==='fixture'?'Fixture mode':'Back online',m==='fixture'?'Canned corpus served — zero retrieval calls billed.':'Session resynced from the logbook.');
+  }
+}
+async function replayOutbox(){
+  if(!S.outbox.length)return;
+  addSys('presence','REPLAY',S.outbox.length+' buffered write(s) replaying in order');
+  const items=S.outbox.slice();S.outbox=[];
+  for(const it of items){
+    const tag=it.row.querySelector('.qtag');
+    if(tag){tag.classList.add('done');tag.textContent='REPLAYED ✓'}
+    it.row.closest('.mg').classList.remove('dim');
+    await sleep(400);
+    await agentRespond(it.q);
+  }
+}
+
+/* ---------- agent kill / resume ---------- */
+ $('#btnKill').addEventListener('click',()=>{
+  if(S.agentDown||S.sealed)return;
+  S.agentDown=true;
+  setAgentLed('dead','KILLED','no agent attached — successor required');
+  refreshFstatus();
+  addSys('deny','AGENT_KILLED','baton-1 detached mid-incident · last checkpoint '+S.ckId+' retained');
+  $('#btnKill').style.display='none';$('#btnResume').style.display='block';
+  toast('bad','Agent killed','baton-1 is down. Attach a successor to resume from the logbook.');
+});
+ $('#btnResume').addEventListener('click',async()=>{
+  if(!S.agentDown)return;
+  $('#btnResume').disabled=true;
+  $('#syncTxt').textContent='SUCCESSOR baton-2 — attaching · replaying logbook from '+S.ckId+'…';
+  $('#sync').classList.remove('bad');$('#sync').classList.add('show');
+  await sleep(1100);
+  S.agentDown=false;S.ckId='ck_'+hexs(3);
+  addSys('ck','SUCCESSOR','baton-2 attached · logbook replayed from checkpoint · 0 repeat questions · coverage '+S.cov+'%');
+  $('#agCk').textContent=S.ckId;
+  setAgentLed('ok','IDLE','successor watching feed · checkpoint armed');
+  $('#btnKill').style.display='block';$('#btnResume').style.display='none';$('#btnResume').disabled=false;
+  $('#sync').classList.remove('show');
+  toast('ok','Successor attached','baton-2 resumed from '+S.ckId+' — zero repeat questions.');
+  const parked=S.pendingQ.slice();S.pendingQ=[];
+  for(const it of parked){
+    const tag=it.row.querySelector('.qtag');
+    if(tag){tag.classList.add('done');tag.textContent='ANSWERED ON RESUME'}
+    it.row.closest('.mg').classList.remove('dim');
+    await sleep(350);
+    await agentRespond(it.q);
+  }
+});
+ $('#btnCk').addEventListener('click',()=>checkpoint(true));
+function checkpoint(manual){
+  if(S.sealed)return;
+  S.ckId='ck_'+hexs(3);S.cov=Math.min(97,S.cov+2);
+  $('#agCk').textContent=S.ckId;$('#agCov').textContent=S.cov+'%';$('#agCovBar').style.width=S.cov+'%';
+  addSys('ck','CHECKPOINT',(manual?'manual · ':'')+S.ckId+' · '+S.events+' events · coverage '+S.cov+'% · push_index written');
+}
+
+/* ---------- handoff ---------- */
+const HO_TOTAL=10*60*1000,HO_C=103.7;
+let hoTimer=null,hoEnd=0;
+function setStepper(n){
+  $('#st1').className='stp on';
+  $('#st2').className='stp'+(n>=1?' on':'');
+  $('#st3').className='stp'+(n>=2?' done':'');
+  $('#sbar1').className='sbar'+(n>=1?' done':'');$('#sbar1').firstElementChild.style.width=n>=1?'100%':'0';
+  $('#sbar2').className='sbar'+(n>=2?' done':'');$('#sbar2').firstElementChild.style.width=n>=2?'100%':'0';
+}
+function initiateHandoff(){
+  if(S.sealed){toast('wa','Room sealed','No handoff on a sealed session.');return}
+  if(S.state==='pending'){
+    addSys('deny','DENY','initiate handoff → 409 · handoff already pending · fail-closed');
+    const b=$('#btnHo');b.classList.add('shake');setTimeout(()=>b.classList.remove('shake'),400);
+    toast('bad','409 Conflict','A handoff is already pending — ACK first or let the window expire.');
+    return;
+  }
+  S.state='pending';syncModeUI();setStepper(1);syncBadges();
+  addDivider('BATON OUT — AWAITING SUCCESSOR ACK');
+  addSys('handoff','HANDOFF',S.owner+' → p.krishnan · checkpoint '+S.ckId+' attached · W=10m · close now returns 409');
+  $('#hoBanner').classList.add('show');
+  $('#hoState').textContent='PENDING_HANDOFF';$('#hoState').className='tag-wa';
+  $('#hoGate').textContent='LOCKED (409)';
+  $('#btnHo').disabled=true;
+  hoEnd=Date.now()+HO_TOTAL;tickHo();hoTimer=setInterval(tickHo,1000);
+  markGuide('handoff');
+  toast('wa','Handoff initiated','Ownership freezes until the successor ACKs. Window W=10m.');
+}
+function tickHo(){
+  const rem=Math.max(0,hoEnd-Date.now());
+  $('#hoTime').textContent=pad2(Math.floor(rem/60000))+':'+pad2(Math.floor(rem%60000/1000));
+  $('#hoArc').style.strokeDashoffset=(HO_C*(1-rem/HO_TOTAL)).toFixed(1);
+  if(rem<=0)expireHo();
+}
+function endPending(){
+  if(hoTimer){clearInterval(hoTimer);hoTimer=null}
+  $('#hoBanner').classList.remove('show');
+  S.state='live';syncModeUI();setStepper(0);syncBadges();
+  $('#hoState').textContent='LIVE';$('#hoState').className='tag-ok';
+  $('#hoGate').textContent='LOCKED until ACK';
+  $('#btnHo').disabled=false;
+}
+function expireHo(){
+  endPending();
+  addSys('deny','EXPIRED','handoff window elapsed · fail-closed · ownership retained by '+S.owner);
+  toast('wa','Window expired','Nothing moved without an ACK — handoff cancelled.');
+}
+ $('#btnHo').addEventListener('click',initiateHandoff);
+ $('#btnCancelHo').addEventListener('click',()=>{
+  if(S.state!=='pending')return;
+  endPending();
+  addSys('handoff','CANCELLED',S.owner+' recalled the baton · ownership unchanged');
+  toast('info','Handoff cancelled','Ownership stays with '+S.owner+'.');
+});
+ $('#btnAckBanner').addEventListener('click',async()=>{
+  if(S.state!=='pending')return;
+  const btn=$('#btnAckBanner');btn.disabled=true;btn.textContent='Resuming…';
+  await sleep(1200);
+  btn.disabled=false;btn.textContent='Take over';
+  endPending();
+  S.owner='p.krishnan';S.decisions.push('Ownership transferred arun.m → p.krishnan (ACK recorded)');
+  $('#hoOwner').textContent='p.krishnan';$('#sbOwner').textContent='p.krishnan';
+  $('#st3').className='stp done';
+  $('#btnHo').disabled=true;$('#btnHo').textContent='BATON PASSED ✓';
+  addDivider('OWNERSHIP TRANSFERRED — P.KRISHNAN HAS THE BATON');
+  addSys('executed','ACK','p.krishnan acknowledged · resume from '+S.ckId+' · zero repeat questions · close gate open');
+  $('#closeWho').textContent='p.krishnan';
+  markGuide('ack');
+  toast('ok','Baton passed','Successor ACK recorded — the 409 close gate is lifted.');
+});
+
+/* ---------- approval ---------- */
+function renderApproval(){
+  $('#sigYou').classList.toggle('on',S.app.you);
+  $('#sigPri').classList.toggle('on',S.app.priya);
+  const n=(S.app.you?1:0)+(S.app.priya?1:0);
+  $('#apBar').style.width=(n/2*100)+'%';
+  $('#apProg').classList.toggle('full',n===2);
+  $('#ssYou').textContent=S.app.you?'SIGNED '+S.app.youAt:'WAITING';
+  $('#ssPri').textContent=S.app.priya?'SIGNED '+S.app.priyaAt:'WAITING';
+  const sb=$('#sbRb');
+  if(S.app.done){
+    $('#apProgTxt').textContent=S.app.executed?'2 of 2 — executed':'1 of 2 — window expired';
+    $('#btnSign').style.display='none';$('#lnkExpire').style.display='none';
+    $('#apDone').classList.add('show');
+    if(S.app.executed){
+      $('#apDone').classList.add('good');$('#apDone').classList.remove('fail');
+      $('#apDone').firstElementChild.outerHTML='<svg class="ic" viewBox="0 0 24 24">'+ICONS.check+'</svg>';
+      $('#apDoneTxt').textContent='Executed — v41.7 live, canary drained, audit row written. Co-sign 2/2 on a94f06e9…d31c2.';
+      sb.textContent='EXECUTED';sb.className='tag-ok';
+    }else{
+      $('#apDone').classList.add('fail');$('#apDone').classList.remove('good');
+      $('#apDone').firstElementChild.outerHTML='<svg class="ic" viewBox="0 0 24 24">'+ICONS.lock+'</svg>';
+      $('#apDoneTxt').textContent='Window elapsed at 1/2 — fail-closed. The staged action cancelled; nothing executed.';
+      sb.textContent='EXPIRED · 1/2';sb.className='tag-wa';
+    }
+  }else{
+    $('#apProgTxt').textContent=n+' of 2 signatures';
+    $('#btnSign').textContent=S.app.you?'SIGNED · waiting for co-sign (1/2)':'Sign as arun.m';
+    $('#btnSign').disabled=S.app.you;
+    sb.textContent='STAGED · '+n+'/2';
+  }
+  syncBadges();
+}
+ $('#btnSign').addEventListener('click',async()=>{
+  if(S.sealed){toast('wa','Room sealed','Approvals are frozen on a sealed session.');return}
+  if(S.app.done||S.app.you)return;
+  S.app.you=true;S.app.youAt=fmtT(new Date());renderApproval();
+  addSys('approval','APPROVAL','arun.m signed stage-rollback (1/2) · payloadHash verified · distinct-human check ok');
+  markGuide('sign');
+  toast('ok','Signed 1/2','Waiting for a second distinct human on the same payloadHash.');
+  await priyaTyping(2600);
+  if(S.app.done||S.sealed)return;
+  S.app.priya=true;S.app.priyaAt=fmtT(new Date());renderApproval();
+  addSys('approval','APPROVAL','priya.k co-signed stage-rollback (2/2) · same payloadHash a94f06e9…d31c2 · within W');
+  await sleep(800);
+  S.app.done=true;S.app.executed=true;renderApproval();
+  S.decisions.push('Rollback v41.8 → v41.7 staged, co-signed 2/2, executed');
+  addSys('executed','EXECUTED','stage-rollback executed · v41.7 live · canary drained · audit row a94f06e9 written');
+  agentNote('Rollback executed per SOP-003 — v41.7 is live and the canary drained clean. Watching 5xx and p95 for ten minutes post-roll; the next checkpoint carries post-roll numbers, and the freeze stays on until 5xx holds under 0.5% for 15.',
+    {cites:[['SOP-003',0.93]],thinking:'executing co-signed action…',meta:'action · stage-rollback · co-sign 2/2 · audit a94f06e9…d31c2'});
+  toast('ok','Approval executed','2/2 distinct signatures — the staged action ran.');
+});
+ $('#lnkExpire').addEventListener('click',e=>{
+  e.preventDefault();
+  if(S.app.done||S.app.priya)return;
+  S.app.done=true;S.app.executed=false;renderApproval();
+  addSys('deny','EXPIRED','co-sign window W=10m elapsed at 1/2 · fail-closed · staged action cancelled');
+  toast('wa','Fail-closed','Window expired unsigned — the staged action cancelled, nothing executed.');
+});
+ $('#copyHash').addEventListener('click',()=>copyText('a94f06e9d31c2','payloadHash copied'));
+
+/* ---------- close / seal ---------- */
+ $('#btnClose').addEventListener('click',()=>{
+  if(S.sealed)return;
+  if(S.state==='pending'){
+    addSys('deny','DENY','close room → 409 · PENDING_HANDOFF without ACK · fail-closed');
+    const b=$('#btnClose');b.classList.add('shake');setTimeout(()=>b.classList.remove('shake'),400);
+    toast('bad','409 Conflict','No room closes on a pending handoff. ACK first, or let the window expire.');
+    return;
+  }
+  openModal('modal-close');
+});
+ $('#mCloseCancel').addEventListener('click',closeModals);
+ $('#mCloseConfirm').addEventListener('click',()=>{
+  closeModals();
+  S.sealed=true;syncModeUI();
+  qInput.disabled=true;sendBtn.disabled=true;closeSug();qInput.placeholder=PH_BASE;
+  addSys('audit','CLOSED','room closed by '+S.owner+' · ownership ACK recorded · logbook sealed · '+S.events+' events');
+  const dur=Date.now()-INC_START;
+  $('#coDur').textContent=pad2(Math.floor(dur/3600000))+':'+pad2(Math.floor(dur%3600000/60000))+':'+pad2(Math.floor(dur%60000/1000));
+  $('#coEv').textContent=S.events;$('#coQ').textContent=S.lat.length;
+  $('#coP50').textContent=pctile(S.lat,.5)+'ms';$('#coP95').textContent=pctile(S.lat,.95)+'ms';
+  openModal('modal-seal');
+  toast('ok','Room sealed','Close event written to audit. Context stays queryable read-only.');
+});
+ $('#mSealDismiss').addEventListener('click',closeModals);
+ $('#mCopyPm').addEventListener('click',()=>{
+  const md=['# INC-2041 — checkout 5xx spike (SEV1)','',
+    'Duration: '+$('#coDur').textContent+' · Events: '+S.events+' · Queries: '+S.lat.length,
+    'p50 '+pctile(S.lat,.5)+'ms · p95 '+pctile(S.lat,.95)+'ms — '+(pctile(S.lat,.5)<=800&&pctile(S.lat,.95)<=2000?'SLO PASS':'SLO FAIL')+' (800/2000)','',
+    'Decisions:'].concat(S.decisions.map(d=>'- '+d)).concat(['','Repeat questions: 0 (served from logbook)','Room: '+ROOM]).join('\n');
+  copyText(md,'Postmortem summary copied to clipboard');
+});
+
+/* ---------- catch-up ---------- */
+function doCatchup(){
+  if(S.sealed){toast('wa','Room sealed','Nothing to catch up on.');return}
+  const sigs=(S.app.you?1:0)+(S.app.priya?1:0);
+  const ap=S.app.done?(S.app.executed?'executed':'expired fail-closed'):((2-sigs)+' signature(s) needed');
+  agentNote('Recall summary · resumed from '+S.ckId+' · '+S.events+' events replayed · 0 repeat questions.\n\nThree decisions on record: deploy freeze engaged (SOP-006), rollback v41.8 → v41.7 staged pending co-sign, comms lane with priya.k. Two open threads: post-roll metrics, error-rate verification under 0.5%. Approval status: '+ap+'.',
+    {cites:[['SOP-005',0.9]],thinking:'recalling from logbook · push_index…',meta:'catch-up · high-priority recall · '+ROOM});
+}
+ $('#actCatchup').addEventListener('click',doCatchup);
+ $('#btnCatchup2').addEventListener('click',doCatchup);
+
+/* ---------- ambient ---------- */
+async function priyaTyping(ms){
+  if(S.sealed)return;
+  typingWho.textContent='priya.k is typing';
+  typingEl.classList.add('show');pin(true);
+  await sleep(ms||2400);
+  typingEl.classList.remove('show');
+}
+async function priyaSay(t){await priyaTyping();if(!S.sealed)addHuman('priya.k',t,new Date())}
+const AMBIENT=[
+  [20,()=>priyaSay('Coalescing engaged — origin QPS is trending back toward baseline.')],
+  [45,()=>checkpoint(false)],
+  [75,()=>priyaSay('Burn rate still under 2x on the query path. I\u2019ll flag the moment it moves.')],
+  [110,()=>checkpoint(false)]
+];
+let ambI=0;
+(function ambient(){
+  const step=AMBIENT[ambI%AMBIENT.length];
+  setTimeout(()=>{if(!S.sealed&&S.mode!=='offline')step[1]();ambI++;ambient()},step[0]*1000);
+})();
+
+/* ---------- clock ---------- */
+function tickClock(){
+  const now=new Date();
+  $('#clockUTC').textContent=fmtTs(now);
+  const el=now.getTime()-INC_START;
+  $('#incClock').textContent='INC+'+pad2(Math.floor(el/3600000))+':'+pad2(Math.floor(el%3600000/60000));
+  $('#sbDur').textContent=Math.floor(el/60000)+' min ago';
+}
+setInterval(tickClock,1000);
+
+/* ---------- toasts ---------- */
+const TIC={ok:'check',wa:'alert',bad:'lock',info:'zap'};
+function toast(type,title,body){
+  const box=$('#toasts');
+  while(box.children.length>=3)box.firstElementChild.remove();
+  const t=document.createElement('div');
+  t.className='toast '+type;
+  t.innerHTML='<svg class="ic" viewBox="0 0 24 24">'+ICONS[TIC[type]||'zap']+'</svg><div><div class="tt">'+esc(title)+'</div><div class="tb">'+esc(body)+'</div></div>';
+  box.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),240)},4200);
+}
+
+/* ---------- modals ---------- */
+function openModal(id){
+  $('#scrim').classList.add('show');
+  $$('.modal').forEach(m=>m.classList.remove('show'));
+  $('#'+id).classList.add('show');
+}
+function closeModals(){$('#scrim').classList.remove('show');$$('.modal').forEach(m=>m.classList.remove('show'))}
+ $('#scrim').addEventListener('click',e=>{if(e.target===$('#scrim'))closeModals()});
+ $('#btnHelp').addEventListener('click',()=>openModal('modal-help'));
+ $('#actHelp').addEventListener('click',()=>openModal('modal-help'));
+ $('#mHelpClose').addEventListener('click',closeModals);
+
+/* ---------- clipboard ---------- */
+function copyText(txt,msg){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>toast('ok','Copied',msg),()=>toast('info','Clipboard blocked',txt.slice(0,60)));
+  }else toast('info','Clipboard',txt.slice(0,60));
+}
+ $('#actCopy').addEventListener('click',()=>copyText(ROOM,'Room id '+ROOM+' copied'));
+
+/* ---------- drawer ---------- */
+ $('#btnMenu').addEventListener('click',()=>document.body.classList.toggle('drawer'));
+ $('#drawerScrim').addEventListener('click',()=>document.body.classList.remove('drawer'));
+
+/* ---------- palette ---------- */
+function simCross(){
+  addSys('deny','DENY','query from war-b81c04 (cross-room) → DENY · isolation_violation written to audit');
+  toast('bad','DENY','Cross-room query blocked — isolation_violation logged.');
+}
+function metricsSnapshot(){
+  addSys('ck','METRICS','GET /api/metrics → 200 · {"p50_ms":'+pctile(S.lat,.5)+',"p95_ms":'+pctile(S.lat,.95)+',"docs":20,"index":"war-room-seed"}');
+}
+const COMMANDS=[
+ {l:'Ask a question',h:'feed',i:'search',k:'ask type question',f:()=>{if(!qInput.disabled)qInput.focus()}},
+ {l:'Catch up on context',h:'recall',i:'clock',k:'catchup summary missed',f:doCatchup},
+ {l:'Toggle sidebar',h:'layout',i:'act',k:'sidebar close open panel left',f:()=>setLeft(!S.lOpen)},
+ {l:'Toggle ops panel',h:'layout',i:'act',k:'ops close open panel right',f:()=>setRight(!S.rOpen)},
+ {l:'Initiate handoff',h:'baton',i:'swap',k:'handoff transfer successor',f:()=>$('#btnHo').click()},
+ {l:'Take over the baton (ACK)',h:'handoff',i:'check',k:'ack accept ownership',f:()=>{if(S.state==='pending')$('#btnAckBanner').click();else toast('info','Nothing to ACK','No handoff is pending right now.')}},
+ {l:'Sign rollback approval',h:'hitl',i:'shield',k:'approve sign cosign rollback',f:()=>{gotoTab('approval');$('#btnSign').click()}},
+ {l:'Expire approval window (fail-closed)',h:'hitl',i:'lock',k:'expire fail closed cancel',f:()=>{gotoTab('approval');$('#lnkExpire').click()}},
+ {l:'Simulate agent kill (S2)',h:'chaos',i:'alert',k:'kill agent chaos successor',f:()=>{gotoTab('agent');$('#btnKill').click()}},
+ {l:'Run 20-query SLO probe',h:'slo',i:'act',k:'probe latency p50 p95',f:()=>{gotoTab('slo');runProbe()}},
+ {l:'Mode → Live',h:'channel',i:'zap',k:'live online',f:()=>setMode('live')},
+ {l:'Mode → Fixture (?fixture=1)',h:'channel',i:'doc',k:'fixture canned test',f:()=>setMode('fixture')},
+ {l:'Mode → Offline (?offline)',h:'channel',i:'off',k:'offline queue outbox',f:()=>setMode('offline')},
+ {l:'Simulate cross-room query (S3)',h:'isolation',i:'lock',k:'deny cross room isolation',f:simCross},
+ {l:'Metrics snapshot · GET /api/metrics',h:'slo',i:'act',k:'metrics snapshot',f:metricsSnapshot},
+ {l:'Close room (ACK required)',h:'gate',i:'lock',k:'close seal end',f:()=>$('#btnClose').click()}
+];
+let palIdx=0,palItems=[];
+function palRender(){
+  const q=$('#palInput').value.trim().toLowerCase();
+  palItems=COMMANDS.filter(c=>(c.l+' '+c.k).toLowerCase().indexOf(q)>=0);
+  palIdx=clamp(palIdx,0,Math.max(0,palItems.length-1));
+  const list=$('#palList');list.innerHTML='';
+  if(!palItems.length){list.innerHTML='<div class="pitem" style="justify-content:center;color:var(--ink3)">No matching command.</div>';return}
+  palItems.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='pitem'+(i===palIdx?' on':'');
+    d.innerHTML='<svg class="ic" viewBox="0 0 24 24">'+ICONS[c.i]+'</svg><span>'+c.l+'</span><span class="ph">'+c.h+'</span>';
+    d.addEventListener('click',()=>{palToggle(false);c.f()});
+    list.appendChild(d);
+  });
+}
+function palToggle(on){
+  $('#palette').classList.toggle('show',on);
+  if(on){$('#palInput').value='';palIdx=0;palRender();$('#palInput').focus()}
+}
+ $('#palInput').addEventListener('input',()=>{palIdx=0;palRender()});
+ $('#palInput').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){e.preventDefault();if(palItems.length){palIdx=(palIdx+1)%palItems.length;palRender()}}
+  else if(e.key==='ArrowUp'){e.preventDefault();if(palItems.length){palIdx=(palIdx-1+palItems.length)%palItems.length;palRender()}}
+  else if(e.key==='Enter'){e.preventDefault();if(palItems[palIdx]){palToggle(false);palItems[palIdx].f()}}
+});
+ $('#actCommands').addEventListener('click',()=>palToggle(true));
+
+/* ---------- keys ---------- */
+document.addEventListener('keydown',e=>{
+  const mod=e.metaKey||e.ctrlKey;
+  if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();if(appShown)palToggle(!$('#palette').classList.contains('show'))}
+  else if(mod&&e.key.toLowerCase()==='b'){e.preventDefault();if(appShown)setLeft(!S.lOpen)}
+  else if(mod&&e.key.toLowerCase()==='j'){e.preventDefault();if(appShown)setRight(!S.rOpen)}
+  else if(e.key==='/'&&appShown&&document.activeElement!==qInput&&document.activeElement!==$('#palInput')&&!$('#palette').classList.contains('show')){e.preventDefault();if(!qInput.disabled)qInput.focus()}
+  else if(e.key==='?'&&appShown&&!$('#palette').classList.contains('show')&&document.activeElement!==qInput&&document.activeElement!==$('#palInput')){e.preventDefault();openModal('modal-help')}
+  else if(e.key==='Escape'){
+    if($('#palette').classList.contains('show'))palToggle(false);
+    else if($('#scrim').classList.contains('show'))closeModals();
+    else if(MENU.classList.contains('open'))MENU.classList.remove('open');
+  }
+});
+
+/* ---------- seed history ---------- */
+const ago=m=>new Date(Date.now()-m*60000);
+const HIST1={text:"Triage per SOP-014: the error body is 502/504-dominant, so upstreams before code — DB pool, cache, auth health. Deploy v41.8 at 13:47 UTC is prime suspect. Comms stays with priya.k so this lane stays quiet.\n\nFreeze recommendation stands: merge queue paused until 5xx holds under 0.5% for 15 minutes (SOP-006).",docs:['SOP-014','SOP-001','SOP-006'],sc:[0.94,0.91,0.77],ms:428};
+const HIST2={text:"Correlation confirmed — v41.8 shipped three minutes before the first 5xx. Staging rollback to v41.7 per SOP-003: staged only, execution is co-sign gated on two distinct humans inside W=10m.\n\nEscalation clock per SOP-020: secondary pages at 5 minutes without progress, service owner at 10.",docs:['SOP-003','SOP-020'],sc:[0.89,0.81],ms:505};
+const HISTORY=[
+ {k:'sys',kind:'init',tag:'ROOM',x:ROOM+' opened for INC-2041 · severity SEV1 · owner arun.m',m:28},
+ {k:'hum',n:'arun.m',x:'Checkout returning 5xx for ~30% of sessions since 13:50 UTC. Starting Sev1 triage and freezing deploys.',m:27},
+ {k:'agt',p:HIST1,m:26},
+ {k:'sys',kind:'ck',tag:'CHECKPOINT',x:'ck_9e1 · 6 events · logbook pushed (push_index) · resume-ready',m:22},
+ {k:'sys',kind:'presence',tag:'PRESENCE',x:'priya.k joined · assumed comms lane · iad1',m:19},
+ {k:'hum',n:'priya.k',x:'Status page flipped to investigating. Deploy v41.8 shipped at 13:47 UTC — three minutes before the first 5xx.',m:18},
+ {k:'agt',p:HIST2,m:15},
+ {k:'sys',kind:'approval',tag:'HITL',x:'stage-rollback v41.8 → v41.7 · payloadHash a94f06e9…d31c2 · W=10m · 0/2 signatures',m:14},
+ {k:'sys',kind:'ck',tag:'CHECKPOINT',x:'ck_9f2 · 13 events · coverage 78%',m:9},
+ {k:'hum',n:'priya.k',x:'Error rate holding 28–31%. Cache coalescing pre-warm is running. Nothing executed yet.',m:6},
+ {k:'sys',kind:'audit',tag:'AUDIT',x:'deploy freeze engaged by arun.m per SOP-006 · merge queue paused',m:4}
+];
+
+/* ---------- boot ---------- */
+async function boot(){
+  syncModeUI();hud();renderApproval();tickClock();refreshFstatus();
+  for(let i=0;i<3;i++){
+    const s=document.createElement('div');s.className='skl';
+    s.innerHTML='<div class="l l1"></div><div class="l l2"></div><div class="l l3"></div>';
+    feedEl.appendChild(s);
+  }
+  $('#syncTxt').textContent='RESUMING SESSION '+ROOM+' — replaying logbook from ck_9e1…';
+  $('#sync').classList.add('show');
+  await sleep(800);
+  $$('.skl').forEach(s=>s.remove());
+  for(let i=0;i<HISTORY.length;i++){
+    const h=HISTORY[i],t=ago(h.m);
+    if(h.k==='sys')addSys(h.kind,h.tag,h.x);
+    else if(h.k==='hum')addHuman(h.n,h.x,t);
+    else agentInstant(h.p,t);
+    $('#syncTxt').textContent='REPLAYING LOGBOOK — '+(i+1)+'/'+HISTORY.length+' events · 0 repeat questions';
+    await sleep(100);
+  }
+  addSys('ck','RESYNC','caught up · '+HISTORY.length+' events replayed · 0 repeat questions · session live');
+  $('#sync').classList.remove('show');
+  setAgentLed('ok','IDLE','watching feed · checkpoint armed');
+  qInput.disabled=false;sendBtn.disabled=false;syncSend();
+  setTimeout(()=>qInput.focus(),300);
+  moveInd();drawSpark();
+  ambient();
+  toast('ok','Channel joined','2 humans + 1 agent on '+ROOM+'. Start typing to search — one co-sign waits at 0/2.');
+}
+</script>
+</body>
+</html>
