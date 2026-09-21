@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
+import { getAuthToken } from "@/lib/moss-server";
 
-// TODO(W2): GET getAuthToken (IAuthenticator bridge). Stub: 501 until Moss is provisioned.
 export async function GET() {
-  return NextResponse.json({ error: "moss-token not implemented" }, { status: 501 });
+  try {
+    const tok = await getAuthToken();
+    return NextResponse.json(tok);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Do not leak project key; return sanitized error
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { getLatencies, getDocCount, computeP50P95, ensureLoaded } from "@/lib/moss-server";
 
-// TODO(W2): GET p50/p95 + docCount (S3 proof surface). Stub: 501.
 export async function GET() {
-  return NextResponse.json({ error: "metrics not implemented" }, { status: 501 });
+  await ensureLoaded();
+  const lat = getLatencies();
+  const { p50, p95 } = computeP50P95(lat);
+  const docCount = getDocCount();
+  return NextResponse.json({ p50, p95, docCount, sampleSize: lat.length });
 }
