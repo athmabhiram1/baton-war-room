@@ -10,6 +10,7 @@ import {
 } from "@liveblocks/react/suspense";
 
 import AckModal from "../../../components/AckModal";
+import CoSignTile from "../../../components/CoSignTile";
 import LatencyHud from "../../../components/LatencyHud";
 import OfflineBadge from "../../../components/OfflineBadge";
 import PresenceAvatars from "../../../components/PresenceAvatars";
@@ -121,7 +122,6 @@ function RoomShell({ id }: { id: string }) {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [drawer, setDrawer] = useState(false);
-  const [apNote, setApNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [modeLabel, setModeLabel] = useState("LIVE");
   const [agentPhase, setAgentPhase] = useState("attached to session…");
   const toastSeq = useRef(0);
@@ -282,12 +282,12 @@ function RoomShell({ id }: { id: string }) {
     }
   }
 
-  async function handoffStub(action: "initiate" | "sign" | "close") {
+  async function handoffStub(action: "initiate" | "close") {
     try {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, roomId }),
+        body: JSON.stringify({ action, roomId, actor: "arun.m" }),
       });
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       return { ok: res.ok, error: body?.error ?? `handoff ${action} failed (${res.status})` };
@@ -309,13 +309,14 @@ function RoomShell({ id }: { id: string }) {
     );
   }
 
-  async function signRollback() {
-    const r = await handoffStub("sign");
-    setApNote(
-      r.ok
-        ? { ok: true, text: "Signature recorded." }
-        : { ok: false, text: `${r.error} — co-sign gates land in T5.` },
-    );
+  async function closeRoom() {
+    const r = await handoffStub("close");
+    if (r.ok) {
+      setCloseOpen(false);
+      setSealed(true);
+    } else {
+      pushToast("wa", "Close blocked (409)", r.error);
+    }
   }
 
   const verdict =
@@ -853,35 +854,13 @@ function RoomShell({ id }: { id: string }) {
                   <span className="ss">WAITING</span>
                 </div>
               </div>
-              <div id="apProg">
-                <span>0 of 2 signatures</span>
-                <span className="bar">
-                  <i />
-                </span>
-              </div>
-              <p className="appnote">
-                Fail-closed: if the second signature doesn&apos;t land within W=10m, the staged
-                action cancels automatically. Every state change is written to the audit trail.
-              </p>
-              <div className="pane-actions">
-                <button className="btn primary blk" onClick={() => void signRollback()} type="button">
-                  Sign as arun.m
-                </button>
-              </div>
-              <div id="apDone" className={apNote ? `show ${apNote.ok ? "good" : "fail"}` : ""}>
-                <svg className="ic" viewBox="0 0 24 24">
-                  <path d="M4 12.5l5 5L20 6.5" />
-                </svg>
-                <span>{apNote?.text}</span>
-              </div>
+              <CoSignTile roomId={roomId} action="rollback" />
               <button
                 className="lnk"
-                onClick={() =>
-                  setApNote({ ok: false, text: "Window expired — staged action cancelled (fail-closed demo)." })
-                }
+                onClick={() => void copyText("a94f06e9d31c2", "Payload hash")}
                 type="button"
               >
-                Expire window now (demo the fail-closed path)
+                Copy payload hash
               </button>
             </div>
             <div className={`ops-pane${tab === "handoff" ? " on" : ""}`} id="pane-handoff">
@@ -1064,11 +1043,7 @@ function RoomShell({ id }: { id: string }) {
               </button>
               <button
                 className="btn primary"
-                disabled={!acked}
-                onClick={() => {
-                  setCloseOpen(false);
-                  setSealed(true);
-                }}
+                onClick={() => void closeRoom()}
                 type="button"
               >
                 Close &amp; seal room

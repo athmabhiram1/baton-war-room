@@ -7,12 +7,14 @@ import { useState } from "react";
 // and the modal surfaces that honestly instead of pretending).
 export default function AckModal({
   roomId,
+  actor = "p.krishnan",
   onAck,
   label = "Take ownership (ACK)",
 }: {
   roomId?: string;
   onAck?: () => void;
   label?: string;
+  actor?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -27,7 +29,7 @@ export default function AckModal({
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "ack", roomId }),
+        body: JSON.stringify({ action: "ack", roomId, actor }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;

@@ -1,0 +1,42 @@
+{
+    "close200":  {
+                     "body":  "{\"sealed\":true,\"state\":\"acked\",\"checkpoint\":\"ck_878eeba2\"}",
+                     "status":  200
+                 },
+    "ratify":  {
+                   "body":  "{\"id\":\"appr_mubmaatc_1\",\"status\":\"ratified\",\"signatures\":\"2/2\"}",
+                   "status":  200
+               },
+    "exec22":  {
+                   "body":  "{\"id\":\"appr_mubmaatc_1\",\"status\":\"executed\",\"signatures\":\"2/2\",\"executed\":true}",
+                   "status":  200
+               },
+    "close409":  {
+                     "body":  "{\"error\":\"PENDING_HANDOFF\",\"state\":\"pending\",\"checkpoint\":\"ck_878eeba2\"}",
+                     "status":  409
+                 },
+    "propose":  {
+                    "body":  "{\"id\":\"appr_mubmaatc_1\",\"status\":\"pending\",\"signatures\":\"1/2\",\"windowEndsAt\":1790018240256}",
+                    "status":  201
+                },
+    "ack":  {
+                "body":  "{\"state\":\"acked\",\"checkpoint\":\"ck_878eeba2\",\"ackedBy\":\"p.krishnan\",\"resume\":{\"checkpoint\":\"ck_878eeba2\",\"pushIndex\":{\"jobId\":\"noop\",\"indexName\":\"war-room-seed\",\"docCount\":20,\"status\":\"completed\"},\"logbook\":[{\"id\":\"escalation-matrix\",\"score\":1},{\"id\":\"handoff-template\",\"score\":1},{\"id\":\"postmortem\",\"score\":1},{\"id\":\"sev2-triage\",\"score\":1},{\"id\":\"comms-template\",\"score\":0.8786}]}}",
+                "status":  200
+            },
+    "recon":  {
+                  "body":  "{\"expired\":[],\"escalated\":[],\"intervalMs\":300000,\"lastRunAt\":1790017645494,\"lastResult\":{\"expired\":[],\"escalated\":[]}}",
+                  "status":  200
+              },
+    "initiate":  {
+                     "body":  "{\"state\":\"pending\",\"checkpoint\":\"ck_878eeba2\",\"initiatedBy\":\"arun.m\"}",
+                     "status":  200
+                 },
+    "cross":  {
+                  "body":  "{\"error\":\"cross-room approval DENY\",\"event\":\"isolation_violation\",\"signatures\":\"1/2\"}",
+                  "status":  403
+              },
+    "exec12":  {
+                   "body":  "{\"error\":\"co-sign quorum not met (1/2) — blocked\",\"event\":\"approval_denied\",\"signatures\":\"1/2\"}",
+                   "status":  403
+               }
+}
