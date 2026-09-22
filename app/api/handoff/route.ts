@@ -9,6 +9,19 @@ import { withFunnel } from "@/lib/funnel";
 
 type Action = "initiate" | "ack" | "close";
 
+// Ops-panel status read: GET /api/handoff?roomId=… returns the live record
+// (state, initiatedAt, ackedBy, checkpoint). Read-only; POST gates untouched.
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const roomId =
+    url.searchParams.get("roomId") ||
+    req.headers.get("x-room-id") ||
+    req.headers.get("x-war-room-id") ||
+    "";
+  if (!roomId) return NextResponse.json({ error: "missing roomId" }, { status: 400 });
+  return NextResponse.json(getHandoff(roomId));
+}
+
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -32,7 +45,12 @@ export async function POST(req: Request) {
   try {
     if (action === "initiate") {
       const rec = await initiateHandoff(roomId, actor);
-      return NextResponse.json({ state: rec.state, checkpoint: rec.checkpoint, initiatedBy: rec.initiatedBy });
+      return NextResponse.json({
+        state: rec.state,
+        checkpoint: rec.checkpoint,
+        initiatedBy: rec.initiatedBy,
+        initiatedAt: rec.initiatedAt,
+      });
     }
     if (action === "ack") {
       // Successor resume runs inside the funnel: pushIndex checkpoint +

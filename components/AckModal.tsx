@@ -12,7 +12,7 @@ export default function AckModal({
   label = "Take ownership (ACK)",
 }: {
   roomId?: string;
-  onAck?: () => void;
+  onAck?: (res: { checkpoint: string | null }) => void;
   label?: string;
   actor?: string;
 }) {
@@ -31,13 +31,16 @@ export default function AckModal({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "ack", roomId, actor }),
       });
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        checkpoint?: string;
+      } | null;
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
         setError(body?.error ?? `handoff ACK failed (${res.status})`);
         return;
       }
       setOpen(false);
-      onAck?.();
+      onAck?.({ checkpoint: typeof body?.checkpoint === "string" ? body.checkpoint : null });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

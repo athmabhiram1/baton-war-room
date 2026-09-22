@@ -23,9 +23,12 @@ test("2-context co-sign: propose (arun) -> ratify (priya) -> execute at 2/2", as
   expect(approvalId).toBeTruthy();
 
   // Second human in a SEPARATE browser context ratifies (webhook-resume path).
+  // The payloadHash is the real client-computed SHA-256 — read it live.
   await priya.goto(`/room/${room}`, { waitUntil: "domcontentloaded" });
+  const liveHash = await arun.locator("#cosignTile").getAttribute("data-payload-hash");
+  expect(liveHash).toMatch(/^[0-9a-f]{64}$/);
   const ratify = (await priya.evaluate(
-    async ([id, rid]) => {
+    async ([id, rid, hash]) => {
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -34,12 +37,12 @@ test("2-context co-sign: propose (arun) -> ratify (priya) -> execute at 2/2", as
           step: "ratify",
           approvalId: id,
           actor: "priya.k",
-          payloadHash: "a94f06e9d31c2",
+          payloadHash: hash,
         }),
       });
       return { status: res.status, body: await res.json() };
     },
-    [approvalId, roomId],
+    [approvalId, roomId, liveHash],
   )) as { status: number; body: { signatures: string } };
   expect(ratify.status).toBe(200);
   expect(ratify.body.signatures).toBe("2/2");

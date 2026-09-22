@@ -16,10 +16,11 @@ vi.stubEnv("BATON_EPHEMERAL", "1");
 vi.stubEnv("CO_SIGN_WINDOW_MS", "60000");
 vi.stubEnv("RECONCILER_INTERVAL_MS", "5000");
 
-import { POST as handoffPOST } from "../app/api/handoff/route";
+import { POST as handoffPOST, GET as handoffGET } from "../app/api/handoff/route";
 import { POST as approvalsPOST } from "../app/api/approvals/route";
 import { GET as reconcilerGET, POST as reconcilerPOST } from "../app/api/reconciler/route";
 import { resetHandoffs } from "../lib/handoff";
+import { canonicalActionPayload, actionPayloadHashHex } from "../lib/action-payload";
 import { listApprovals, resetApprovals } from "../lib/approvals";
 import { resetReconciler } from "../lib/reconciler";
 import { resetFunnel, withFunnel } from "../lib/funnel";
@@ -211,5 +212,57 @@ describe("scoped funnel (per-room single-writer, pushIndex+audit only)", () => {
     expect(
       await approvalQuorum({ id: "missing", roomId: ROOM, now: Date.now() }),
     ).toBe(false);
+  });
+});
+
+describe("ops wiring: live handoff status + derived payload hash", () => {
+  function getReq(roomId: string): Request {
+    return new Request(`http://localhost/api/handoff?roomId=${roomId}`, { method: "GET" });
+  }
+
+  it("GET /api/handoff reflects live state (live → pending → acked)", async () => {
+    const before = await handoffGET(getReq(ROOM));
+    expect(before.status).toBe(200);
+    expect(((await before.json()) as { state: string }).state).toBe("live");
+
+    await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "arun.m" }));
+    const pending = await handoffGET(getReq(ROOM));
+    expect(((await pending.json()) as { state: string }).state).toBe("pending");
+
+    await handoffPOST(req({ roomId: ROOM, action: "ack", actor: "p.krishnan" }));
+    const acked = (await (await handoffGET(getReq(ROOM))).json()) as {
+      state: string;
+      ackedBy: string;
+      checkpoint: string;
+    };
+    expect(acked.state).toBe("acked");
+    expect(acked.ackedBy).toBe("p.krishnan");
+    expect(acked.checkpoint).toMatch(/^ck_/);
+  });
+
+  it("GET /api/handoff 400s without roomId (fail-closed)", async () => {
+    const res = await handoffGET(new Request("http://localhost/api/handoff", { method: "GET" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("initiate response carries initiatedAt for the banner countdown", async () => {
+    const t0 = Date.now();
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "arun.m" }));
+    const body = (await res.json()) as { initiatedAt: number; checkpoint: string };
+    expect(typeof body.initiatedAt).toBe("number");
+    expect(body.initiatedAt).toBeGreaterThanOrEqual(t0);
+    expect(body.checkpoint).toMatch(/^ck_/);
+  });
+
+  it("derives stable SHA-256 payload hashes (never a hardcoded constant)", async () => {
+    const c1 = canonicalActionPayload(ROOM, "rollback", "v41.8→v41.7");
+    const c2 = canonicalActionPayload(ROOM, "rollback", "v41.8→v41.7");
+    expect(c1).toBe(c2);
+    const h1 = await actionPayloadHashHex(c1);
+    expect(h1).toMatch(/^[0-9a-f]{64}$/);
+    expect(await actionPayloadHashHex(canonicalActionPayload(ROOM, "rollback", "v41.8→v41.6"))).not.toBe(h1);
+    expect(await actionPayloadHashHex(canonicalActionPayload(OTHER, "rollback", "v41.8→v41.7"))).not.toBe(h1);
+    const { createHash } = await import("node:crypto");
+    expect(h1).toBe(createHash("sha256").update(c1).digest("hex"));
   });
 });
