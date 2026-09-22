@@ -77,3 +77,54 @@ describe("T3 war-room UI wiring", () => {
     expect(s).toContain("ACK");
   });
 });
+
+// Feed + shell wire-or-honest contracts (no stubs, no frozen mocks).
+describe("feed + shell wired", () => {
+  it("AnswerCard: cite button expands inline source on click", () => {
+    const s = src("components/AnswerCard.tsx");
+    expect(s).toContain("onClick");
+    expect(s).toContain("aria-expanded");
+    // expanded inline detail renders full citation text
+    expect(s.includes("useState") && s.includes("expanded")).toBe(true);
+  });
+
+  it("Room: Write checkpoint hits a real endpoint (no stub toast)", () => {
+    const s = src("app/room/[id]/Room.tsx");
+    expect(s).toContain("/api/catchup");
+    expect(s.includes("(stub)")).toBe(false);
+  });
+
+  it("Room: kill/attach drive real handoff initiate/ack flow", () => {
+    const s = src("app/room/[id]/Room.tsx");
+    expect(s).toContain("/api/handoff");
+    expect(s).toContain("initiate");
+    expect(s).toContain("ack");
+    // local-only copy is gone: kill posts initiate, attach posts ack
+    expect(s.includes("Successor can resume from ck_9f2.")).toBe(false);
+    expect(s.includes("Replayed logbook · 0 repeat questions.")).toBe(false);
+  });
+
+  it("Room: elapsed INC+ timer ticks live (no frozen 00:26)", () => {
+    const s = src("app/room/[id]/Room.tsx");
+    expect(s.includes("INC+00:26")).toBe(false);
+    expect(s).toContain("INC+");
+    expect(s.includes("openedAt") && s.includes("elapsed")).toBe(true);
+  });
+
+  it("Hero: mock is labelled PREVIEW/illustrative, not LIVE", () => {
+    const s = src("app/page.tsx");
+    expect(s).toContain("PREVIEW");
+    expect(s).toContain("illustrative");
+    // mock-top pill must not claim LIVE
+    expect(s.includes('<span className="mlive">')).toBe(false);
+    expect(s.includes("plays it live")).toBe(false);
+  });
+
+  it("HeroActions: dead scrollToLoop removed, live one kept", () => {
+    const s = src("components/HeroActions.tsx");
+    const occurrences = s.split("function scrollToLoop").length - 1;
+    expect(occurrences).toBe(1);
+    expect(s).toContain('scrollIntoView');
+    expect(s).toContain("#loop");
+  });
+});

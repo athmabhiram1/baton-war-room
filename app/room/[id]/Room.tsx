@@ -10,12 +10,19 @@ import {
 } from "@liveblocks/react/suspense";
 
 import AckModal from "../../../components/AckModal";
-import CoSignTile from "../../../components/CoSignTile";
+import CoSignTile, { type CoSignLive } from "../../../components/CoSignTile";
 import LatencyHud from "../../../components/LatencyHud";
 import OfflineBadge from "../../../components/OfflineBadge";
 import PresenceAvatars from "../../../components/PresenceAvatars";
 import SearchBox from "../../../components/SearchBox";
 import ThemeToggle from "../../../components/ThemeToggle";
+import {
+  formatCountdown,
+  ringOffset,
+  RING_CIRCUMFERENCE,
+  shortHash,
+} from "../../../lib/action-payload";
+import { runProbe as runProbeSamples } from "../../../lib/probe";
 
 type Toast = { key: number; kind: "ok" | "wa" | "bad" | "info"; title: string; body?: string };
 type Metrics = { p50: number; p95: number; docCount: number; sampleSize: number };
@@ -114,10 +121,33 @@ function RoomShell({ id }: { id: string }) {
   const [welcomeVisible, setWelcomeVisible] = useState(true);
   const [hoState, setHoState] = useState<HoState>("live");
   const [acked, setAcked] = useState(false);
+  const [approval, setApproval] = useState<CoSignLive>({
+    id: null,
+    signatures: "0/2",
+    status: "idle",
+    windowEndsAt: null,
+    payloadHash: "",
+  });
+  const [windowTotal, setWindowTotal] = useState<number | null>(null);
+  const [hoInitiatedAt, setHoInitiatedAt] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [recon, setRecon] = useState<{
+    lastRunAt: number | null;
+    expired: number;
+    escalated: number;
+    intervalMs: number | null;
+  }>({ lastRunAt: null, expired: 0, escalated: 0, intervalMs: null });
+  const [reconBusy, setReconBusy] = useState(false);
+  const approvalIdRef = useRef<string | null>(null);
   const [qn, setQn] = useState(0);
   const [askedOnce, setAskedOnce] = useState(false);
   const [agentDown, setAgentDown] = useState(false);
+  const [lastCk, setLastCk] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeN, setProbeN] = useState(0);
   const [clock, setClock] = useState("--:--:--");
+  const openedAt = useRef(Date.now());
+  const [elapsed, setElapsed] = useState("INC+00:00");
   const [modeMenu, setModeMenu] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -146,13 +176,108 @@ function RoomShell({ id }: { id: string }) {
     }
   }, []);
 
+  const refreshHandoff = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/handoff?roomId=${encodeURIComponent(roomId)}`);
+      if (!res.ok) return;
+      const body = (await res.json()) as {
+        state: HoState;
+        checkpoint: string | null;
+        initiatedAt: number | null;
+        ackedBy: string | null;
+      };
+      setHoState(body.state);
+      if (body.checkpoint) setLastCk(body.checkpoint);
+      if (typeof body.initiatedAt === "number") setHoInitiatedAt(body.initiatedAt);
+      setAcked(body.state === "acked");
+    } catch {
+      // best-effort ops data.
+    }
+  }, [roomId]);
+
+  const refreshRecon = useCallback(async () => {
+    try {
+      const res = await fetch("/api/reconciler");
+      if (!res.ok) return;
+      const body = (await res.json()) as {
+        lastRunAt?: number | null;
+        intervalMs?: number;
+        lastResult?: { expired?: string[]; escalated?: string[] } | null;
+      };
+      setRecon({
+        lastRunAt: typeof body.lastRunAt === "number" ? body.lastRunAt : null,
+        expired: body.lastResult?.expired?.length ?? 0,
+        escalated: body.lastResult?.escalated?.length ?? 0,
+        intervalMs: typeof body.intervalMs === "number" ? body.intervalMs : null,
+      });
+    } catch {
+      // best-effort ops data.
+    }
+  }, []);
+
+  const onApproval = useCallback((s: CoSignLive) => {
+    if (approvalIdRef.current !== s.id) {
+      approvalIdRef.current = s.id;
+      setWindowTotal(
+        typeof s.windowEndsAt === "number" ? Math.max(1, s.windowEndsAt - Date.now()) : null,
+      );
+    }
+    setApproval(s);
+  }, []);
+
+  async function runSweep() {
+    setReconBusy(true);
+    try {
+      const res = await fetch("/api/reconciler", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      const body = (await res.json().catch(() => null)) as {
+        expired?: string[];
+        escalated?: string[];
+        lastRunAt?: number;
+        intervalMs?: number;
+      } | null;
+      if (!res.ok) {
+        pushToast("bad", "Reconciler sweep failed", `HTTP ${res.status}`);
+        return;
+      }
+      const expired = Array.isArray(body?.expired) ? body.expired.length : 0;
+      const escalated = Array.isArray(body?.escalated) ? body.escalated.length : 0;
+      setRecon({
+        lastRunAt: typeof body?.lastRunAt === "number" ? body.lastRunAt : Date.now(),
+        expired,
+        escalated,
+        intervalMs: typeof body?.intervalMs === "number" ? body.intervalMs : recon.intervalMs,
+      });
+      pushToast("ok", "Reconciler sweep complete", `expired ${expired} · escalated ${escalated}`);
+    } catch (e) {
+      pushToast("bad", "Reconciler sweep failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setReconBusy(false);
+    }
+  }
+
   useEffect(() => {
     setModeLabel(readMode().label);
     void refreshMetrics();
+    void refreshRecon();
+    void refreshHandoff();
     const tick = () => {
       const d = new Date();
+      setNowMs(d.getTime());
       setClock(
         `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")}`,
+      );
+      const s = Math.max(0, Math.floor((Date.now() - openedAt.current) / 1000));
+      const hh = Math.floor(s / 3600);
+      const mm = Math.floor((s % 3600) / 60);
+      const ss = s % 60;
+      setElapsed(
+        hh > 0
+          ? `INC+${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+          : `INC+${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`,
       );
     };
     tick();
@@ -184,7 +309,58 @@ function RoomShell({ id }: { id: string }) {
       window.removeEventListener("baton:palette", onPalette);
       window.removeEventListener("baton:agent-status", onPhase);
     };
-  }, [refreshMetrics]);
+  }, [refreshMetrics, refreshRecon, refreshHandoff]);
+
+  // Handoff stepper/rows follow the live server record while a baton is out.
+  useEffect(() => {
+    if (hoState !== "pending") return;
+    const iv = setInterval(() => {
+      void refreshHandoff();
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [hoState, refreshHandoff]);
+
+  // Room-level approval status poll (mirrors the CoSignTile 5s poll) so the
+  // banner countdown, signer badges, and rollback row stay live.
+  useEffect(() => {
+    if (!approval.id || approval.status === "executed" || approval.status === "expired") return;
+    const iv = setInterval(() => {
+      void (async () => {
+        try {
+          const res = await fetch("/api/approvals", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ roomId, step: "status", approvalId: approval.id }),
+          });
+          if (!res.ok) return;
+          const body = (await res.json()) as {
+            status?: string;
+            signatures?: string;
+            windowEndsAt?: number;
+          };
+          setApproval((prev: CoSignLive) => ({
+            ...prev,
+            status: body.status ?? prev.status,
+            signatures: body.signatures ?? prev.signatures,
+            windowEndsAt:
+              typeof body.windowEndsAt === "number" ? body.windowEndsAt : prev.windowEndsAt,
+          }));
+        } catch {
+          // best-effort poll.
+        }
+      })();
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [approval.id, approval.status, roomId]);
+
+  // Slow poll for HUD-adjacent live data (metrics coverage + reconciler).
+  useEffect(() => {
+    const iv = setInterval(() => {
+      void refreshMetrics();
+      void refreshRecon();
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [refreshMetrics, refreshRecon]);
 
   useEffect(() => {
     document.body.classList.toggle("l-off", !leftOpen);
@@ -282,40 +458,246 @@ function RoomShell({ id }: { id: string }) {
     }
   }
 
-  async function handoffStub(action: "initiate" | "close") {
+  // Turn writes the session checkpoint, initiate mints its id for replay.
+  async function writeCheckpoint() {
+    let turnNote: string;
+    try {
+      const t0 = performance.now();
+      const turnRes = await fetch("/api/turn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          q: "Checkpoint: summarize open decisions, owners, and next actions for the logbook.",
+          roomId,
+        }),
+      });
+      const turnBody = (await turnRes.json().catch(() => null)) as {
+        citations?: Array<unknown>;
+        timeTakenInMs?: number;
+        error?: string;
+      } | null;
+      if (!turnRes.ok && turnRes.status !== 403) {
+        throw new Error(turnBody?.error ?? `turn failed (${turnRes.status})`);
+      }
+      const turnMs =
+        typeof turnBody?.timeTakenInMs === "number"
+          ? turnBody.timeTakenInMs
+          : Math.round(performance.now() - t0);
+      const cites = Array.isArray(turnBody?.citations) ? turnBody.citations.length : 0;
+      turnNote = `turn ${turnMs}ms · ${cites} citations`;
+    } catch (e) {
+      turnNote = `turn unavailable (${e instanceof Error ? e.message : String(e)})`;
+    }
+    try {
+      const hoRes = await fetch("/api/handoff", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "initiate", roomId, actor: "arun.m" }),
+      });
+      const hoBody = (await hoRes.json().catch(() => null)) as {
+        checkpoint?: string;
+        initiatedAt?: number;
+        error?: string;
+      } | null;
+      if (!hoRes.ok) throw new Error(hoBody?.error ?? `handoff initiate failed (${hoRes.status})`);
+      const ck = hoBody?.checkpoint ?? "pending";
+      setLastCk(ck);
+      setHoInitiatedAt(typeof hoBody?.initiatedAt === "number" ? hoBody.initiatedAt : Date.now());
+      setHoState("pending");
+      pushToast("ok", `Checkpoint ${ck} written`, `${turnNote} · handoff pending.`);
+    } catch (e) {
+      pushToast("bad", "Checkpoint failed", e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function killAgent() {
+    try {
+      const res = await fetch("/api/handoff", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "initiate", roomId, actor: "arun.m" }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        checkpoint?: string;
+        initiatedAt?: number;
+        error?: string;
+      } | null;
+      setAgentDown(true);
+      setHoState("pending");
+      if (typeof body?.initiatedAt === "number") setHoInitiatedAt(body.initiatedAt);
+      else setHoInitiatedAt(Date.now());
+      setTab("handoff");
+      if (body?.checkpoint) setLastCk(body.checkpoint);
+      setHoInitiatedAt(Date.now());
+      pushToast(
+        res.ok ? "wa" : "bad",
+        res.ok ? "Agent killed (S2)" : "Kill failed",
+        res.ok
+          ? `Handoff initiated · checkpoint ${body?.checkpoint ?? "pending"}.`
+          : (body?.error ?? `handoff initiate failed (${res.status})`),
+      );
+    } catch (e) {
+      pushToast("bad", "Kill failed", e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function attachSuccessor() {
+    try {
+      const res = await fetch("/api/handoff", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ack", roomId, actor: "p.krishnan" }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        checkpoint?: string;
+        resume?: { logbook?: Array<unknown> };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(body?.error ?? `handoff ack failed (${res.status})`);
+      const replayed = Array.isArray(body?.resume?.logbook) ? body.resume.logbook.length : 0;
+      setAgentDown(false);
+      setAcked(true);
+      setHoState("acked");
+      if (body?.checkpoint) setLastCk(body.checkpoint);
+      pushToast(
+        "ok",
+        "Successor attached",
+        `Checkpoint ${body?.checkpoint ?? "head"} replayed · ${replayed} logbook events · 0 repeat questions.`,
+      );
+    } catch (e) {
+      pushToast("bad", "Attach failed", e instanceof Error ? e.message : String(e));
+    }
+  }
+  async function handoffCall(action: "initiate" | "close") {
     try {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action, roomId, actor: "arun.m" }),
       });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      return { ok: res.ok, error: body?.error ?? `handoff ${action} failed (${res.status})` };
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        checkpoint?: string;
+        initiatedAt?: number;
+      } | null;
+      return {
+        ok: res.ok,
+        error: body?.error ?? `handoff ${action} failed (${res.status})`,
+        checkpoint: typeof body?.checkpoint === "string" ? body.checkpoint : null,
+        initiatedAt: typeof body?.initiatedAt === "number" ? body.initiatedAt : null,
+      };
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      return { ok: false, error: e instanceof Error ? e.message : String(e), checkpoint: null, initiatedAt: null };
     }
   }
 
   async function initiateHandoff() {
-    const r = await handoffStub("initiate");
-    // T5 owns gates; the 501 stub is expected — keep the demo moving locally
-    // while saying so out loud.
+    const r = await handoffCall("initiate");
+    if (!r.ok) {
+      pushToast("bad", "Handoff initiate failed", `${r.error} — local state unchanged.`);
+      return;
+    }
+    if (r.checkpoint) setLastCk(r.checkpoint);
+    setHoInitiatedAt(r.initiatedAt ?? Date.now());
     setHoState("pending");
     setTab("handoff");
-    pushToast(
-      r.ok ? "ok" : "wa",
-      r.ok ? "Handoff initiated" : `Handoff stub (${r.error})`,
-      r.ok ? "Waiting for successor ACK." : "Showing pending locally — gates land in T5.",
-    );
+    pushToast("ok", "Handoff initiated", `Waiting for successor ACK · ${r.checkpoint ?? ""}`);
+  }
+
+  async function ackTakeover() {
+    try {
+      const res = await fetch("/api/handoff", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ack", roomId, actor: "p.krishnan" }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        checkpoint?: string;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        pushToast("bad", "ACK failed", body?.error ?? `handoff ACK failed (${res.status})`);
+        return;
+      }
+      setAcked(true);
+      setHoState("acked");
+      if (body?.checkpoint) setLastCk(body.checkpoint);
+      pushToast("ok", "Ownership ACK recorded", "Close gate is open.");
+    } catch (e) {
+      pushToast("bad", "ACK failed", e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function closeRoom() {
-    const r = await handoffStub("close");
+    const r = await handoffCall("close");
     if (r.ok) {
       setCloseOpen(false);
       setSealed(true);
     } else {
       pushToast("wa", "Close blocked (409)", r.error);
+    }
+  }
+
+  const PROBE_QS = [
+    "SEV1 triage steps",
+    "rollback runbook",
+    "deploy freeze policy",
+    "database failover",
+    "cache stampede mitigation",
+    "DNS incident response",
+    "TLS expiry rotation",
+    "queue backlog drain",
+    "disk full node recovery",
+    "OOM pod remediation",
+    "5xx spike triage",
+    "latency SLO burn",
+    "auth outage response",
+    "rate limit tuning",
+    "feature flag kill",
+    "postmortem template",
+    "escalation matrix",
+    "comms template",
+    "handoff template",
+    "SEV2 triage steps",
+  ];
+
+  async function runProbe() {
+    if (probing) return;
+    setProbing(true);
+    setProbeN(0);
+    try {
+      let qi = 0;
+      const { p50, p95, samples } = await runProbeSamples(
+        PROBE_QS.length,
+        async () => {
+          const q = PROBE_QS[qi % PROBE_QS.length];
+          qi += 1;
+          const t0 = performance.now();
+          const res = await fetch("/api/query", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ q, roomId }),
+          });
+          const body = (await res.json().catch(() => null)) as {
+            timeTakenInMs?: number;
+            error?: string;
+          } | null;
+          if (!res.ok) throw new Error(body?.error ?? `probe query failed (${res.status})`);
+          return typeof body?.timeTakenInMs === "number"
+            ? body.timeTakenInMs
+            : Math.round(performance.now() - t0);
+        },
+        (done) => setProbeN(done),
+      );
+      setMetrics((m) => ({ ...m, p50, p95, sampleSize: samples.length }));
+      setLatHist((prev) => [...prev, ...samples].slice(-40));
+      setLastMs(samples[samples.length - 1]);
+      const pass = p50 <= 800 && p95 <= 2000;
+      pushToast(pass ? "ok" : "wa", `Probe: p50 ${p50}ms · p95 ${p95}ms`, `20 live /api/query samples · ${pass ? "SLO PASS" : "SLO FAIL"}.`);
+    } catch (e) {
+      pushToast("bad", "Probe failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setProbing(false);
     }
   }
 
@@ -325,6 +707,43 @@ function RoomShell({ id }: { id: string }) {
       : metrics.p50 <= 800 && metrics.p95 <= 2000
         ? { text: "SLO PASS", cls: "pass" }
         : { text: "SLO FAIL", cls: "fail" };
+
+  const SEED_CORPUS_SIZE = 20;
+  const coverage =
+    metrics.docCount > 0
+      ? Math.min(100, Math.round((metrics.docCount / SEED_CORPUS_SIZE) * 100))
+      : 0;
+
+  const HO_FALLBACK_WINDOW_MS = 600_000;
+  const countdownEndsAt =
+    approval.windowEndsAt ??
+    (hoState === "pending" && hoInitiatedAt !== null
+      ? hoInitiatedAt + HO_FALLBACK_WINDOW_MS
+      : null);
+  const countdownTotal =
+    approval.windowEndsAt !== null
+      ? windowTotal
+      : countdownEndsAt !== null
+        ? HO_FALLBACK_WINDOW_MS
+        : null;
+  const countdownMs = countdownEndsAt === null ? null : countdownEndsAt - nowMs;
+  const hoTimeLabel = countdownMs === null ? "—:—" : formatCountdown(countdownMs);
+  const hoFraction =
+    countdownMs === null || countdownTotal === null
+      ? 1
+      : Math.min(1, Math.max(0, countdownMs / countdownTotal));
+
+  function signerLabel(which: "me" | "peer"): string {
+    if (approval.id === null) return "IDLE";
+    if (approval.status === "expired") return "EXPIRED";
+    if (which === "me") return "SIGNED";
+    return approval.signatures === "2/2" ? "SIGNED" : "WAITING";
+  }
+
+  const reconLabel =
+    recon.lastRunAt === null
+      ? "No sweep yet"
+      : `Last sweep ${new Date(recon.lastRunAt).toISOString().slice(11, 19)}Z · expired ${recon.expired} · escalated ${recon.escalated}`;
 
   const commands = [
     { name: "Catch up on context", hint: "/api/catchup", run: catchup },
@@ -444,7 +863,7 @@ function RoomShell({ id }: { id: string }) {
         </button>
         <div className="hclock">
           <b>{clock}</b>
-          <span>INC+00:26</span>
+          <span>{elapsed}</span>
         </div>
       </header>
 
@@ -479,7 +898,9 @@ function RoomShell({ id }: { id: string }) {
                     </div>
                     <div className="r">
                       <span>Rollback</span>
-                      <span className="tag-wa">STAGED · 0/2</span>
+                      <span className="tag-wa">
+                        {approval.id ? `STAGED · ${approval.signatures}` : "STAGED · awaiting proposal"}
+                      </span>
                     </div>
                     <div className="r">
                       <span>Opened</span>
@@ -643,11 +1064,11 @@ function RoomShell({ id }: { id: string }) {
                   fill="none"
                   strokeWidth="2.5"
                   strokeLinecap="round"
-                  strokeDasharray="103.7"
-                  strokeDashoffset="0"
+                  strokeDasharray={RING_CIRCUMFERENCE}
+                  strokeDashoffset={ringOffset(hoFraction)}
                 />
               </svg>
-              <span id="hoTime">10:00</span>
+              <span id="hoTime">{hoTimeLabel}</span>
             </span>
             <div>
               <div className="hob-t">Baton is out — waiting for p.krishnan</div>
@@ -657,12 +1078,12 @@ function RoomShell({ id }: { id: string }) {
               </div>
             </div>
             <div className="hob-actions">
-              <button className="btn" onClick={() => setHoState("live")} type="button">
+              <button className="btn" onClick={() => void closeRoom()} type="button">
                 Cancel
               </button>
               <button
                 className="btn primary"
-                onClick={() => setTab("handoff")}
+                onClick={() => void ackTakeover()}
                 type="button"
               >
                 Take over
@@ -699,7 +1120,7 @@ function RoomShell({ id }: { id: string }) {
                 )}
                 <div className="sysline k-ok">
                   <b>ATTACH</b>
-                  <span>baton-1 joined · replayed ck_9f2 → head · 0 repeat</span>
+                  <span>baton-1 joined · replayed {lastCk ?? "—"} → head · 0 repeat</span>
                 </div>
                 <div className="sysline k-wa">
                   <b>FREEZE</b>
@@ -748,14 +1169,14 @@ function RoomShell({ id }: { id: string }) {
               <div className="kv">
                 <div className="r">
                   <span>Logbook coverage</span>
-                  <span>78%</span>
+                  <span id="logCoverage">{coverage}%</span>
                 </div>
                 <div className="covbar">
-                  <i style={{ width: "78%" }} />
+                  <i style={{ width: `${coverage}%` }} />
                 </div>
                 <div className="r">
                   <span>Last checkpoint</span>
-                  <span>ck_9f2</span>
+                  <span>{lastCk ?? "—"}</span>
                 </div>
                 <div className="r">
                   <span>Repeat questions</span>
@@ -769,7 +1190,7 @@ function RoomShell({ id }: { id: string }) {
               <div className="pane-actions">
                 <button
                   className="btn blk"
-                  onClick={() => pushToast("ok", "Checkpoint written", "ck logged to the outbox (stub).")}
+                  onClick={() => void writeCheckpoint()}
                   type="button"
                 >
                   Write checkpoint now
@@ -777,10 +1198,7 @@ function RoomShell({ id }: { id: string }) {
                 {!agentDown ? (
                   <button
                     className="btn dgr blk"
-                    onClick={() => {
-                      setAgentDown(true);
-                      pushToast("wa", "Agent killed (S2)", "Successor can resume from ck_9f2.");
-                    }}
+                    onClick={() => void killAgent()}
                     type="button"
                   >
                     Simulate agent kill (S2)
@@ -788,10 +1206,7 @@ function RoomShell({ id }: { id: string }) {
                 ) : (
                   <button
                     className="btn primary blk"
-                    onClick={() => {
-                      setAgentDown(false);
-                      pushToast("ok", "Successor attached", "Replayed logbook · 0 repeat questions.");
-                    }}
+                    onClick={() => void attachSuccessor()}
                     type="button"
                   >
                     Attach successor agent
@@ -816,10 +1231,12 @@ function RoomShell({ id }: { id: string }) {
                   <path d="M11 12.5 20 3.5" />
                   <path d="M17.5 6.5l2.5 2.5" />
                 </svg>
-                payloadHash&nbsp;<b>a94f06e9…d31c2</b>
+                payloadHash&nbsp;
+                <b>{approval.payloadHash ? shortHash(approval.payloadHash) : "computing…"}</b>
                 <button
                   aria-label="Copy hash"
-                  onClick={() => void copyText("a94f06e9d31c2", "Payload hash")}
+                  disabled={!approval.payloadHash}
+                  onClick={() => void copyText(approval.payloadHash, "Payload hash")}
                   type="button"
                 >
                   <svg className="ic" style={{ width: 12, height: 12 }} viewBox="0 0 24 24">
@@ -839,7 +1256,7 @@ function RoomShell({ id }: { id: string }) {
                     <div className="sn">arun.m</div>
                     <div className="sr">Primary on-call · you</div>
                   </div>
-                  <span className="ss">WAITING</span>
+                  <span className="ss" data-signer="arun.m">{signerLabel("me")}</span>
                 </div>
                 <div className="signer">
                   <span className="ring">
@@ -851,13 +1268,31 @@ function RoomShell({ id }: { id: string }) {
                     <div className="sn">priya.k</div>
                     <div className="sr">Comms lead</div>
                   </div>
-                  <span className="ss">WAITING</span>
+                  <span className="ss" data-signer="priya.k">{signerLabel("peer")}</span>
                 </div>
               </div>
-              <CoSignTile roomId={roomId} action="rollback" />
+              <CoSignTile roomId={roomId} action="rollback" onApproval={onApproval} />
+              <div className="recon">
+                <button
+                  className="btn blk"
+                  disabled={reconBusy}
+                  onClick={() => void runSweep()}
+                  type="button"
+                >
+                  {reconBusy ? "Sweeping…" : "Run reconciler sweep"}
+                </button>
+                <div
+                  id="reconStatus"
+                  data-expired={recon.expired}
+                  data-escalated={recon.escalated}
+                >
+                  {reconLabel}
+                </div>
+              </div>
               <button
                 className="lnk"
-                onClick={() => void copyText("a94f06e9d31c2", "Payload hash")}
+                disabled={!approval.payloadHash}
+                onClick={() => void copyText(approval.payloadHash, "Payload hash")}
                 type="button"
               >
                 Copy payload hash
@@ -912,9 +1347,10 @@ function RoomShell({ id }: { id: string }) {
                   <AckModal
                     roomId={roomId}
                     label="Take over (ACK)"
-                    onAck={() => {
+                    onAck={(res) => {
                       setAcked(true);
                       setHoState("acked");
+                      if (res.checkpoint) setLastCk(res.checkpoint);
                       pushToast("ok", "Ownership ACK recorded", "Close gate is open.");
                     }}
                   />
@@ -933,21 +1369,21 @@ function RoomShell({ id }: { id: string }) {
                 <div className="tile">
                   <em>LAST</em>
                   <b>
-                    <span>{lastMs}</span>
+                    <span>{latHist.length === 0 && lastMs === 0 ? "—" : lastMs}</span>
                     <small>ms</small>
                   </b>
                 </div>
                 <div className="tile">
                   <em>P50</em>
                   <b>
-                    <span>{metrics.p50}</span>
+                    <span>{metrics.sampleSize === 0 ? "—" : metrics.p50}</span>
                     <small>ms</small>
                   </b>
                 </div>
                 <div className="tile">
                   <em>P95</em>
                   <b>
-                    <span>{metrics.p95}</span>
+                    <span>{metrics.sampleSize === 0 ? "—" : metrics.p95}</span>
                     <small>ms</small>
                   </b>
                 </div>
@@ -965,13 +1401,11 @@ function RoomShell({ id }: { id: string }) {
               <div className="pane-actions">
                 <button
                   className="btn primary blk"
-                  onClick={() => {
-                    void refreshMetrics();
-                    pushToast("info", "Probe mirrors scripts/latency-probe.mjs", "Full 20-query probe lands in T5.");
-                  }}
+                  onClick={() => void runProbe()}
+                  disabled={probing}
                   type="button"
                 >
-                  Run 20-query probe
+                  {probing ? `Probing ${probeN}/20…` : "Run 20-query probe"}
                 </button>
               </div>
               <p className="dim-note">
@@ -1081,11 +1515,11 @@ function RoomShell({ id }: { id: string }) {
               </div>
               <div>
                 <div className="k">P50</div>
-                <div className="v">{metrics.p50}ms</div>
+                <div className="v">{metrics.sampleSize === 0 ? "—" : `${metrics.p50}ms`}</div>
               </div>
               <div>
                 <div className="k">P95</div>
-                <div className="v">{metrics.p95}ms</div>
+                <div className="v">{metrics.sampleSize === 0 ? "—" : `${metrics.p95}ms`}</div>
               </div>
               <div>
                 <div className="k">REPEAT Q</div>

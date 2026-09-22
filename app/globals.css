@@ -105,6 +105,8 @@ input{font:inherit;color:inherit}
 .mt{font-family:var(--mono);font-size:11px;color:var(--ink2);letter-spacing:.04em}
 .mlive{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;color:var(--ok)}
 .mlive i{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:breath 1.6s infinite}
+.mpreview{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;color:var(--warn)}
+.mpreview i{width:5px;height:5px;border-radius:50%;background:var(--warn)}
 .mock-feed{height:344px;overflow:hidden;padding:13px 14px;display:flex;flex-direction:column;gap:9px;font-size:13px;line-height:1.5}
 .mrow{animation:rise .35s ease both}
 .m-sys{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--ink3);padding-left:32px}

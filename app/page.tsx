@@ -41,8 +41,8 @@ export default function Home() {
             <b>zero repeat questions</b>, and no room closes without an explicit ACK.
           </p>
           <HeroCtas />
-          <div className="hstats">
-            <span className="hstat g">
+          <div className="hstats" title="SLO targets — live values in the room SLO tab">
+            <span className="hstat g" title="SLO target — live values in the room SLO tab">
               <i />p50 ≤ 800 ms
             </span>
             <span className="hstat g">
@@ -60,10 +60,10 @@ export default function Home() {
         </div>
         <div className="mock">
           <div className="mock-top">
-            <span className="mt">war-7f3a2c · INC-2041 · SEV1</span>
-            <span className="mlive">
+            <span className="mt">war-7f3a2c · INC-2041 · SEV1 · illustrative preview</span>
+            <span className="mlive preview" title="Illustrative preview — not live data">
               <i />
-              LIVE
+              PREVIEW
             </span>
           </div>
           <div className="mock-feed" aria-label="War-room preview">
@@ -128,7 +128,7 @@ export default function Home() {
             <span className="rail">
               <span className="runner" />
             </span>
-            <span>p50 412ms · 0 repeat</span>
+            <span>sample p50 412ms · 0 repeat · illustrative preview</span>
           </div>
         </div>
       </section>
@@ -139,8 +139,8 @@ export default function Home() {
             One loop, <em>five moves</em>.
           </h2>
           <p>
-            Every Baton session runs the same contract. The demo above plays it live; the war-room
-            lets you drive every step yourself.
+            Every Baton session runs the same contract. The PREVIEW above is a simulated
+            illustration; the war-room lets you drive every step yourself with live presence.
           </p>
         </div>
         <div className="loop">

@@ -56,8 +56,8 @@ export default function LatencyHud({
     };
   }, [mode]);
 
-  const showP50 = p50 ?? fetched?.p50 ?? 0;
-  const showP95 = p95 ?? fetched?.p95 ?? 0;
+  const showP50 = p50 ?? fetched?.p50 ?? null;
+  const showP95 = p95 ?? fetched?.p95 ?? null;
 
   return (
     <div
@@ -71,7 +71,8 @@ export default function LatencyHud({
         whiteSpace: "nowrap",
       }}
     >
-      {liveMode} · {lastMs}ms · p50 {showP50}ms · p95 {showP95}ms
+      {liveMode} · {lastMs}ms · p50 {showP50 === null ? "—" : `${showP50}ms`} · p95{" "}
+      {showP95 === null ? "—" : `${showP95}ms`}
     </div>
   );
 }

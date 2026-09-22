@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useUpdateMyPresence } from "@liveblocks/react/suspense";
 
 import type { Citation } from "../lib/answer";
 import AnswerCard from "./AnswerCard";
@@ -87,6 +88,24 @@ export default function SearchBox({
   const [agentStatus, setAgentStatusLocal] = useState<AgentStatus>("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const keySeq = useRef(0);
+  const updateMyPresence = useUpdateMyPresence();
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function markTyping() {
+    try {
+      updateMyPresence({ typing: true });
+    } catch {
+      // presence unavailable (fixture/offline) — composer still works.
+    }
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      try {
+        updateMyPresence({ typing: false });
+      } catch {
+        // ignore — room already gone.
+      }
+    }, 1200);
+  }
 
   useEffect(() => {
     setMount(document.getElementById(mountId));
@@ -156,6 +175,9 @@ export default function SearchBox({
       return true;
     }
     if (!res.ok) {
+      // Non-403 worker failure: fall through to live /api/query below so the
+      // feed still renders server citations instead of a dead error.
+      if (res.status !== 403) return false;
       setError(body.error ?? `turn failed (${res.status})`);
       setAnswers((prev) => prev.filter((a) => a.key !== pendingKey));
       trackStatus("idle");
@@ -234,6 +256,12 @@ export default function SearchBox({
   async function ask(query: string) {
     const question = query.trim();
     if (question.length === 0 || loading) return;
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    try {
+      updateMyPresence({ typing: false });
+    } catch {
+      // presence already gone — answer flow continues regardless.
+    }
     setLoading(true);
     setError(null);
     setSugOpen(false);
@@ -443,6 +471,7 @@ export default function SearchBox({
                 setQ(e.target.value);
                 setSugOpen(true);
                 setSugHi(0);
+                markTyping();
               }}
               onKeyDown={onKeyDown}
               onBlur={() => setTimeout(() => setSugOpen(false), 120)}

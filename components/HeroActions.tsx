@@ -37,10 +37,6 @@ export default function HeroActions() {
     router.push(`/room/${id}`);
   }
 
-  function scrollToLoop() {
-    document.querySelector("#loop")?.scrollIntoView({ behavior: "smooth" });
-  }
-
   return (
     <button className="btn primary" id="navLaunch" onClick={enter} type="button">
       Launch demo
