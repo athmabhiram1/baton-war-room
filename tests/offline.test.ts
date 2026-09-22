@@ -2,9 +2,17 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// ?offline shows OFFLINE badge + idb/outbox replay. Owned by T6. Skipped — do not delete.
-describe.skip("?offline badge + replay", () => {
-  it("shows OFFLINE badge and replays outbox", () => {});
+// ?offline: badge renders on lost connection + outbox replay drains in order (T6 GREEN).
+describe("?offline badge + replay", () => {
+  it("queueOffline buffers ops and replayOffline drains in FIFO order", async () => {
+    const { queueOffline, replayOffline } = await import("../lib/idb");
+    expect(replayOffline()).toEqual([]);
+    queueOffline({ roomId: "war-a", kind: "ack", payload: { by: "arun" } });
+    queueOffline({ roomId: "war-a", kind: "ratify", payload: { by: "priya" } });
+    const replayed = replayOffline() as Array<{ kind: string }>;
+    expect(replayed.map((o) => o.kind)).toEqual(["ack", "ratify"]);
+    expect(replayOffline()).toEqual([]);
+  });
 });
 
 // T3 war-room UI (plan.md §4 T3): source-contract tests. Node-env safe

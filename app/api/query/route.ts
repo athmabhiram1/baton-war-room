@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { session, recordLatency } from "@/lib/moss-server";
+import { fixtureDocs } from "@/lib/idb";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -12,6 +13,25 @@ export async function POST(req: Request) {
   const q = (body as { q?: unknown })?.q;
   if (typeof q !== "string" || q.trim().length === 0) {
     return NextResponse.json({ error: "missing q" }, { status: 400 });
+  }
+
+  // ?fixture=1 (or body.fixture): canned docs, zero Moss calls. Returns
+  // before any session() call so it works with no keys, offline, or demo.
+  const url = new URL(req.url);
+  const fixture =
+    url.searchParams.get("fixture") === "1" ||
+    (body as { fixture?: unknown })?.fixture === true;
+  if (fixture) {
+    const citations = fixtureDocs().map((d, i) => ({
+      id: d.id,
+      score: 1 - i * 0.01,
+      text: d.text,
+    }));
+    return NextResponse.json({
+      citations,
+      timeTakenInMs: Date.now() - t0,
+      fixture: true,
+    });
   }
   // Room scoping (plan §5 RLS: warRoomId server-derived). For S1 use header/body
   // fallback to global so isolated tests pass without Liveblocks context.
