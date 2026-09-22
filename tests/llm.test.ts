@@ -28,7 +28,7 @@ describe("resolveVertexConfig", () => {
       type: "service_account",
       project_id: "demo-project",
       client_email: "demo@example.iam.gserviceaccount.com",
-      private_key: "-----BEGIN PRIVATE KEY-----\nDEMO\n-----END PRIVATE KEY-----\n",
+      private_key: "DEMO-NOT-A-REAL-KEY",
     });
     try {
       const cfg = resolveVertexConfig();
