@@ -1,68 +1,58 @@
-# Demo script — Baton war-room in 2:00
+# Demo script — Baton war-room in 2:00 (story cut)
 
-Record at 1080p, 130 wpm. Keep `?fixture=1` ready as backup. Spoken lines
-are quoted; actions are plain. Proof for every beat: `docs/evidence/`.
+Record 1080p, 130wpm. Tabs ready: A landing `/`, B room `/room/war-demo` (Arun),
+C incognito same room (Priya). Backup: `/room/war-demo?fixture=1`.
+Spoken lines are quoted. Proof: `docs/evidence/`.
 
-## 0:00 Friction
+Cast: Arun (outgoing, tired), Priya (incoming, fresh), RoomMate (the agent
+that remembers). Incident: SEV1 checkout down, 3:04 a.m.
 
-"Every SEV1 ends the same way. The outgoing engineer leaves, the newcomer
-asks the same three questions, and the agent starts from zero."
+## Setup (before rolling)
+Close extra tabs. Hide bookmarks. Open A, B, C. Check Tab B feed loads
+with citations. Keep this file open on a second screen — read the quotes,
+do the actions.
 
-Click: landing page, Enter room. Curl backup:
+## 0:00 — The 3 a.m. page (Tab A landing, 15s)
+"It's 3:04 a.m. Checkout is down. Arun has been fighting it for two hours
+and his shift is over. Every SEV1 ends the same way — the brain walks out
+the door with him."
+Action: scroll hero once, click Enter room.
 
+## 0:20 — Priya walks in (Tab B + C room, 30s)
+"Priya joins mid-fire. She doesn't ask Arun anything. She asks the room:
+what happened so far?"
+Action: in Tab B SearchBox type `what happened so far?`, Enter. Point at
+citation chips + LatencyHud p50/p95.
+"Scored sources, milliseconds, zero repeat questions. The logbook is the memory."
+
+## 0:50 — The human steers (Tab B, 20s)
+"Then Priya disagrees. Don't chase the deploy — check replica lag first."
+Action: type `actually check replica lag first`, Enter. Show Tab C typing
++ avatars moving live.
+"Watch the human redirect. The agent re-queries, the feed updates, nobody
+refreshes."
+
+## 1:10 — Kill the agent (Tab B kills, Tab C resumes, 25s)
+"Now the scary part. Arun's laptop dies — agent with it."
+Action: Tab B click Write checkpoint / Kill. Toast shows `ck_...`.
+Tab C click ACK in AckModal, feed replays checkpoint + logbook count.
+"A successor wakes up with the checkpoint, not an interrogation."
+
+## 1:35 — The dangerous button (Tab B proposes, Tab C ratifies, 25s)
+"Failover could save us or bury us. So one human is never enough."
+Action: Tab B CoSignTile Propose DB failover → `1/2 blocked`. Tab C Ratify
+same hash → `2/2` → Execute 200.
+"Two distinct humans, one payload hash, or nothing moves. Fail-closed."
+
+## 1:50 — The door that won't shut (Tab B, 15s)
+"Arun tries to close the room and leave. It refuses — 409. No ACK, no close."
+Action: Close → 409, then ACK → Close → 200. Flash metrics tiles green,
+open `?fixture=1` once for the FIXTURE badge.
+"Baton: hand over the incident, not the guesswork."
+
+## Curl backups (if UI hiccups live, run + show output)
 ```bash
-curl -X POST localhost:3112/api/query -H 'content-type: application/json' \
-  -d '{"q":"SEV1 triage"}' # 200, 2+ citations, timeTakenInMs
+curl -X POST $BASE/api/query -H 'content-type: application/json' -d '{"q":"SEV1 triage"}'
+curl -X POST $BASE/api/handoff -H 'content-type: application/json' -d '{"roomId":"war-demo","action":"ack","actor":"priya"}'
+curl -X POST "$BASE/api/query?fixture=1" -H 'content-type: application/json' -d '{"q":"SEV1 triage"}'
 ```
-
-## 0:20 Catch-up
-
-"Priya joins mid-incident and asks what happened so far. The agent answers
-with scored citations, not vibes."
-
-Click: second browser, same room, ask in feed. Point at LatencyHud p50/p95.
-Evidence: `docs/evidence/query-curl-body.json`.
-
-## 0:50 Redirect
-
-"Watch the human steer. Check replica lag first. The agent re-queries and
-the feed updates."
-
-Type the redirect in SearchBox. Presence avatars and typing stay live.
-
-## 1:10 Kill and resume
-
-"Now kill the agent. The successor replays the checkpoint, no interrogation."
-
-Close worker tab, open successor, click ACK in AckModal. Curl:
-
-```bash
-curl -X POST localhost:3112/api/handoff -H 'content-type: application/json' \
-  -d '{"roomId":"war-demo","action":"ack","actor":"priya"}'
-```
-
-Evidence: `docs/evidence/handoff-green.txt` (200 after ACK).
-
-## 1:35 Co-sign
-
-"Database failover needs two humans on one payload hash. One signature
-stays blocked. Two execute."
-
-Click: propose in CoSignTile, ratify as second human. Deny case:
-
-```bash
-curl -X POST localhost:3112/api/approvals \
-  -H 'content-type: application/json' \
-  -d '{"roomId":"war-demo","approvalId":"<id>","actor":"priya","payloadHash":"<hash>","step":"ratify"}'
-```
-
-Evidence: `docs/evidence/cosign-2ctx.spec.ts`.
-
-## 1:50 Metrics and fixture
-
-"Close without an ACK returns 409. With an ACK, 200. Metrics stay green,
-and fixture mode demos with zero spend."
-
-Curls: close before ACK shows 409 (`docs/evidence/handoff-red.txt`); then
-`GET /api/metrics` and `POST /api/query?fixture=1`. "Baton: hand over the
-incident, not the guesswork."
