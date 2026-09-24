@@ -16,3 +16,7 @@ tsconfig.tsbuildinfo
 .DS_Store
 Thumbs.db
 *.log
+
+# Test / tooling output
+test-results/
+playwright-report/
