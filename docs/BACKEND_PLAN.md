@@ -1,5 +1,13 @@
 # Baton Backend Plan — Real Two-User Demo (Neon Auth)
 
+Status: Momus [OKAY] (all references verify, every wave executable).
+Deploy: SAME Vercel project (managed integration injects per-branch
+`NEON_AUTH_BASE_URL` automatically — do not split auth separately).
+Reproducibility pin: `@neondatabase/auth@0.5.0-beta` EXACT (no `^`, no
+`@latest`; commit lockfile). Beta: minors may break — last break was
+0.2.0-beta.1 (unified `createNeonAuth()`, required `NEON_AUTH_COOKIE_SECRET`,
+`force-dynamic` on auth-consuming server components).
+
 Goal: turn the static two-window demo into a real two-user app — login →
 join-by-code → named Liveblocks presence → session-bound approvals/handoff.
 Theme/CSS byte-identical. No building starts until `NEON_AUTH_BASE_URL` is
