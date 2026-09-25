@@ -48,6 +48,11 @@ export const outbox = pgTable(
   ],
 );
 
+// T5 actor binding (Wave 3): actor_id uuid NOT NULL → neon_auth."user"(id),
+// ratifier_id nullable uuid FK (uuid: live introspection shows the user PK is
+// uuid, not text). Legacy proposer/ratifier text columns stay for the
+// ephemeral in-memory gate + audit readability. Mirrors
+// drizzle/0004_approvals_actor.sql (pre-prod rows WIPED, user-approved).
 export const approvals = pgTable(
   "approvals",
   {
@@ -57,6 +62,8 @@ export const approvals = pgTable(
     payloadHash: text("payload_hash").notNull(),
     proposer: text("proposer").notNull(),
     ratifier: text("ratifier"),
+    actorId: uuid("actor_id").notNull(),
+    ratifierId: uuid("ratifier_id"),
     status: text("status").notNull().default("pending"),
     windowEndsAt: timestamp("window_ends_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -222,6 +229,7 @@ export async function requestApproval(input: {
   action: string;
   payloadHash: string;
   proposer: string;
+  actorId: string;
   windowEndsAt: Date;
 }) {
   return withWarRoom(input.roomId, async (tx) => {
@@ -231,7 +239,11 @@ export async function requestApproval(input: {
   });
 }
 
-export async function ratifyApproval(input: { id: string; ratifier: string }) {
+export async function ratifyApproval(input: {
+  id: string;
+  ratifier: string;
+  ratifierId?: string;
+}) {
   const [row] = await db
     .select()
     .from(approvals)
@@ -247,7 +259,12 @@ export async function ratifyApproval(input: { id: string; ratifier: string }) {
   }
   const [updated] = await db
     .update(approvals)
-    .set({ ratifier: input.ratifier, status: "ratified", updatedAt: new Date() })
+    .set({
+      ratifier: input.ratifier,
+      ratifierId: input.ratifierId ?? null,
+      status: "ratified",
+      updatedAt: new Date(),
+    })
     .where(sql`${approvals.id} = ${input.id}`)
     .returning();
   if (!updated) throw new Error("ratify returned no row");

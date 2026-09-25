@@ -64,6 +64,7 @@ async function mirrorProposal(rec: ApprovalRecord): Promise<void> {
       action: rec.action,
       payloadHash: rec.payloadHash,
       proposer: rec.proposer,
+      actorId: rec.proposer,
       windowEndsAt: new Date(rec.windowEndsAt),
     });
     await db.enqueueOutbox({
