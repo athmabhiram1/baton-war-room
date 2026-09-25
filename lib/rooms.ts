@@ -40,6 +40,31 @@ export async function createRoom(
   return existing;
 }
 
+export async function getMember(
+  code: string,
+  userId: string,
+): Promise<{ role: string } | null> {
+  const { db, roomMembers } = await import("./db");
+  const { and, eq } = await import("drizzle-orm");
+  const rows = await db
+    .select({ role: roomMembers.role })
+    .from(roomMembers)
+    .where(and(eq(roomMembers.roomCode, code), eq(roomMembers.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function isMember(code: string, userId: string): Promise<boolean> {
+  const { db, roomMembers } = await import("./db");
+  const { and, eq } = await import("drizzle-orm");
+  const rows = await db
+    .select({ userId: roomMembers.userId })
+    .from(roomMembers)
+    .where(and(eq(roomMembers.roomCode, code), eq(roomMembers.userId, userId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function upsertMember(
   code: string,
   userId: string,

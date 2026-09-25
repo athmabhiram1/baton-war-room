@@ -1,11 +1,30 @@
-// T5: POST /api/handoff {roomId, action: initiate|ack|close, actor}.
+// T5: POST /api/handoff {roomId, action: initiate|ack|close}.
+// T6: actor is server-bound — derived ONLY from the Neon Auth session.
+// A non-empty body.actor that matches neither the session name nor id is a
+// spoof → 403 + actor_spoof audit. No cookie / no session → 401.
 // initiate → PENDING_HANDOFF row; close while pending+unacked → 409;
 // after ACK → 200 with logbook + push_index checkpoint for the successor.
 // Docs: Next.js Route Handlers https://nextjs.org/docs/app/building-your-application/routing/route-handlers
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { ackHandoff, closeRoom, getHandoff, HandoffBlocked, initiateHandoff } from "@/lib/handoff";
 import { withFunnel } from "@/lib/funnel";
+import { auth } from "@/lib/auth/server";
+
+type SessionUser = { id?: unknown; name?: unknown; role?: unknown };
+
+// Best-effort spoof audit (skipped in BATON_EPHEMERAL unit tests; the 403
+// itself is the gate, durability reconciles via lib/reconciler.ts).
+async function auditSpoof(roomId: string, claimed: string, actual: string): Promise<void> {
+  if (process.env.BATON_EPHEMERAL === "1") return;
+  try {
+    const db = await import("@/lib/db");
+    await db.logAudit({ roomId, event: "actor_spoof", details: { claimed, actual } });
+  } catch {
+    // Gate stays authoritative; audit is best-effort.
+  }
+}
 
 type Action = "initiate" | "ack" | "close";
 
@@ -36,10 +55,32 @@ export async function POST(req: Request) {
     req.headers.get("x-war-room-id") ||
     "";
   const action = b.action as Action;
-  const actor = typeof b.actor === "string" && b.actor ? b.actor : "unknown";
   if (!roomId) return NextResponse.json({ error: "missing roomId" }, { status: 400 });
   if (action !== "initiate" && action !== "ack" && action !== "close") {
     return NextResponse.json({ error: "action must be initiate|ack|close" }, { status: 400 });
+  }
+
+  const h = await headers();
+  if (!h.get("cookie")) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  let result: { data?: { user?: SessionUser } | null };
+  try {
+    result = (await (auth.getSession as (args: unknown) => Promise<unknown>)({
+      headers: h,
+    })) as { data?: { user?: SessionUser } | null };
+  } catch {
+    return NextResponse.json({ error: "auth_unavailable" }, { status: 503 });
+  }
+  const user = result?.data?.user;
+  if (typeof user?.id !== "string" || !user.id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const actor = typeof user.name === "string" && user.name ? user.name : user.id;
+  const claimed = typeof b.actor === "string" && b.actor ? b.actor : null;
+  if (claimed !== null && claimed !== actor && claimed !== user.id) {
+    await auditSpoof(roomId, claimed, actor);
+    return NextResponse.json({ error: "actor_spoof" }, { status: 403 });
   }
 
   try {
