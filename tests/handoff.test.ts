@@ -12,12 +12,32 @@ try {
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/auth/server", () => ({
+  auth: {
+    getSession: vi.fn(),
+  },
+}));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+}));
+
+// Approvals route is session-bound (T5 actor binding): stub the DB-touching
+// membership check, default every caller to member.
+vi.mock("@/lib/rooms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rooms")>();
+  return { ...actual, isMember: vi.fn() };
+});
+
 vi.stubEnv("BATON_EPHEMERAL", "1");
 vi.stubEnv("CO_SIGN_WINDOW_MS", "60000");
 vi.stubEnv("RECONCILER_INTERVAL_MS", "5000");
 
 import { POST as handoffPOST, GET as handoffGET } from "../app/api/handoff/route";
 import { POST as approvalsPOST } from "../app/api/approvals/route";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth/server";
+import * as rooms from "@/lib/rooms";
 import { GET as reconcilerGET, POST as reconcilerPOST } from "../app/api/reconciler/route";
 import { resetHandoffs } from "../lib/handoff";
 import { canonicalActionPayload, actionPayloadHashHex } from "../lib/action-payload";
@@ -38,48 +58,70 @@ function req(body: unknown): Request {
 const ROOM = "war-t5-test";
 const OTHER = "war-t5-other";
 
+const mockedAuth = vi.mocked(auth);
+const mockedHeaders = vi.mocked(headers);
+const mockedIsMember = vi.mocked(
+  (rooms as unknown as { isMember: typeof rooms.isMember }).isMember,
+);
+
+function sessionAs(id: string, name: string) {
+  mockedHeaders.mockResolvedValue(new Headers({ cookie: "sid=abc" }));
+  mockedAuth.getSession.mockResolvedValue({
+    data: { user: { id, name, role: "Observer" } },
+    error: null,
+  } as never);
+}
+
 beforeEach(() => {
   resetHandoffs();
   resetApprovals();
   resetReconciler();
   resetFunnel();
+  mockedHeaders.mockResolvedValue(new Headers());
+  mockedAuth.getSession.mockReset();
+  mockedIsMember.mockResolvedValue(true);
 });
 
 describe("POST /api/handoff (409→ACK→200)", () => {
   it("409s close on PENDING_HANDOFF without ACK, 200s after ACK", async () => {
-    const init = await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "arun.m" }));
+    sessionAs("u_arun", "arun.m");
+    const init = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
     expect(init.status).toBe(200);
     const initBody = (await init.json()) as { state: string; checkpoint: string };
     expect(initBody.state).toBe("pending");
     expect(initBody.checkpoint).toMatch(/^ck_/);
 
-    const blocked = await handoffPOST(req({ roomId: ROOM, action: "close", actor: "arun.m" }));
+    const blocked = await handoffPOST(req({ roomId: ROOM, action: "close" }));
     expect(blocked.status).toBe(409);
     const blockedBody = (await blocked.json()) as { error: string };
     expect(blockedBody.error).toMatch(/PENDING_HANDOFF/);
 
-    const ack = await handoffPOST(req({ roomId: ROOM, action: "ack", actor: "p.krishnan" }));
+    sessionAs("u_priya", "p.krishnan");
+    const ack = await handoffPOST(req({ roomId: ROOM, action: "ack" }));
     expect(ack.status).toBe(200);
     const ackBody = (await ack.json()) as { state: string; checkpoint: string; resume: unknown };
     expect(ackBody.state).toBe("acked");
     expect(ackBody.resume).toBeDefined();
 
-    const closed = await handoffPOST(req({ roomId: ROOM, action: "close", actor: "arun.m" }));
+    sessionAs("u_arun", "arun.m");
+    const closed = await handoffPOST(req({ roomId: ROOM, action: "close" }));
     expect(closed.status).toBe(200);
     const closedBody = (await closed.json()) as { sealed: boolean };
     expect(closedBody.sealed).toBe(true);
   });
 
   it("400s without roomId (fail-closed)", async () => {
-    const res = await handoffPOST(req({ action: "initiate", actor: "arun.m" }));
+    sessionAs("u_arun", "arun.m");
+    const res = await handoffPOST(req({ action: "initiate" }));
     expect(res.status).toBe(400);
   });
 });
 
 describe("co-sign quorum (2 distinct humans, same payloadHash, window)", () => {
   it("1/2 blocked on execute, 2/2 executes", async () => {
+    sessionAs("u_arun", "arun.m");
     const proposed = await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "a94f06e9", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "a94f06e9", step: "propose" }),
     );
     expect(proposed.status).toBe(201);
     const { id } = (await proposed.json()) as { id: string };
@@ -88,8 +130,9 @@ describe("co-sign quorum (2 distinct humans, same payloadHash, window)", () => {
     expect(early.status).toBe(403);
     expect(((await early.json()) as { signatures: string }).signatures).toBe("1/2");
 
+    sessionAs("u_priya", "priya.k");
     const ratified = await approvalsPOST(
-      req({ roomId: ROOM, step: "ratify", approvalId: id, actor: "priya.k", payloadHash: "a94f06e9" }),
+      req({ roomId: ROOM, step: "ratify", approvalId: id, payloadHash: "a94f06e9" }),
     );
     expect(ratified.status).toBe(200);
 
@@ -99,23 +142,26 @@ describe("co-sign quorum (2 distinct humans, same payloadHash, window)", () => {
   });
 
   it("same-human ratify DENYs fail-closed", async () => {
+    sessionAs("u_arun", "arun.m");
     const proposed = await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "hash1", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "hash1", step: "propose" }),
     );
     const { id } = (await proposed.json()) as { id: string };
     const res = await approvalsPOST(
-      req({ roomId: ROOM, step: "ratify", approvalId: id, actor: "arun.m", payloadHash: "hash1" }),
+      req({ roomId: ROOM, step: "ratify", approvalId: id, payloadHash: "hash1" }),
     );
     expect(res.status).toBe(403);
   });
 
   it("payloadHash mismatch DENYs fail-closed", async () => {
+    sessionAs("u_arun", "arun.m");
     const proposed = await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "hash1", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "hash1", step: "propose" }),
     );
     const { id } = (await proposed.json()) as { id: string };
+    sessionAs("u_priya", "priya.k");
     const res = await approvalsPOST(
-      req({ roomId: ROOM, step: "ratify", approvalId: id, actor: "priya.k", payloadHash: "tampered" }),
+      req({ roomId: ROOM, step: "ratify", approvalId: id, payloadHash: "tampered" }),
     );
     expect(res.status).toBe(403);
   });
@@ -123,12 +169,14 @@ describe("co-sign quorum (2 distinct humans, same payloadHash, window)", () => {
 
 describe("cross-room isolation (DENY + isolation_violation)", () => {
   it("ratify/execute from another room DENYs", async () => {
+    sessionAs("u_arun", "arun.m");
     const proposed = await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "h", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "h", step: "propose" }),
     );
     const { id } = (await proposed.json()) as { id: string };
+    sessionAs("u_priya", "priya.k");
     const res = await approvalsPOST(
-      req({ roomId: OTHER, step: "ratify", approvalId: id, actor: "priya.k", payloadHash: "h" }),
+      req({ roomId: OTHER, step: "ratify", approvalId: id, payloadHash: "h" }),
     );
     expect(res.status).toBe(403);
     const body = (await res.json()) as { event: string };
@@ -136,8 +184,9 @@ describe("cross-room isolation (DENY + isolation_violation)", () => {
   });
 
   it("rooms never share approval rows", async () => {
+    sessionAs("u_arun", "arun.m");
     await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "h", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "h", step: "propose" }),
     );
     const mine = listApprovals().filter((a) => a.roomId === OTHER);
     expect(mine).toHaveLength(0);
@@ -146,8 +195,9 @@ describe("cross-room isolation (DENY + isolation_violation)", () => {
 
 describe("durable HITL reconciler (short overrides, no 5-min wait)", () => {
   it("flips stale pending approvals to expired", async () => {
+    sessionAs("u_arun", "arun.m");
     const proposed = await approvalsPOST(
-      req({ roomId: ROOM, action: "rollback", payloadHash: "h", actor: "arun.m", step: "propose" }),
+      req({ roomId: ROOM, action: "rollback", payloadHash: "h", step: "propose" }),
     );
     const { id } = (await proposed.json()) as { id: string };
     const swept = await reconcilerPOST(req({ now: Date.now() + 61_000 }));
@@ -221,15 +271,17 @@ describe("ops wiring: live handoff status + derived payload hash", () => {
   }
 
   it("GET /api/handoff reflects live state (live → pending → acked)", async () => {
+    sessionAs("u_arun", "arun.m");
     const before = await handoffGET(getReq(ROOM));
     expect(before.status).toBe(200);
     expect(((await before.json()) as { state: string }).state).toBe("live");
 
-    await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "arun.m" }));
+    await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
     const pending = await handoffGET(getReq(ROOM));
     expect(((await pending.json()) as { state: string }).state).toBe("pending");
 
-    await handoffPOST(req({ roomId: ROOM, action: "ack", actor: "p.krishnan" }));
+    sessionAs("u_priya", "p.krishnan");
+    await handoffPOST(req({ roomId: ROOM, action: "ack" }));
     const acked = (await (await handoffGET(getReq(ROOM))).json()) as {
       state: string;
       ackedBy: string;
@@ -246,8 +298,9 @@ describe("ops wiring: live handoff status + derived payload hash", () => {
   });
 
   it("initiate response carries initiatedAt for the banner countdown", async () => {
+    sessionAs("u_arun", "arun.m");
     const t0 = Date.now();
-    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "arun.m" }));
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
     const body = (await res.json()) as { initiatedAt: number; checkpoint: string };
     expect(typeof body.initiatedAt).toBe("number");
     expect(body.initiatedAt).toBeGreaterThanOrEqual(t0);
@@ -264,5 +317,57 @@ describe("ops wiring: live handoff status + derived payload hash", () => {
     expect(await actionPayloadHashHex(canonicalActionPayload(OTHER, "rollback", "v41.8→v41.7"))).not.toBe(h1);
     const { createHash } = await import("node:crypto");
     expect(h1).toBe(createHash("sha256").update(c1).digest("hex"));
+  });
+});
+
+describe("T6 actor binding (session-bound, spoof→403 + audit)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionAs("u_ada", "Ada");
+  });
+
+  it("stamps initiatedBy from the session when no body actor is sent", async () => {
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { initiatedBy: string };
+    expect(body.initiatedBy).toBe("Ada");
+  });
+
+  it("rejects a spoofed body actor with 403 + actor_spoof", async () => {
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate", actor: "mallory" }));
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: string }).error).toMatch(/actor_spoof/);
+  });
+
+  it("returns 401 without touching auth when no cookie is presented", async () => {
+    mockedHeaders.mockResolvedValue(new Headers());
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
+    expect(res.status).toBe(401);
+    expect(mockedAuth.getSession).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when no session exists", async () => {
+    mockedAuth.getSession.mockResolvedValue({ data: null, error: null } as never);
+    const res = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
+    expect(res.status).toBe(401);
+  });
+
+  it("keeps the 409→ACK→200 matrix green under session binding", async () => {
+    const init = await handoffPOST(req({ roomId: ROOM, action: "initiate" }));
+    expect(init.status).toBe(200);
+    expect(((await init.json()) as { initiatedBy: string }).initiatedBy).toBe("Ada");
+
+    const blocked = await handoffPOST(req({ roomId: ROOM, action: "close" }));
+    expect(blocked.status).toBe(409);
+
+    const ack = await handoffPOST(req({ roomId: ROOM, action: "ack" }));
+    expect(ack.status).toBe(200);
+    const ackBody = (await ack.json()) as { ackedBy: string; resume: unknown };
+    expect(ackBody.ackedBy).toBe("Ada");
+    expect(ackBody.resume).toBeDefined();
+
+    const closed = await handoffPOST(req({ roomId: ROOM, action: "close" }));
+    expect(closed.status).toBe(200);
+    expect(((await closed.json()) as { sealed: boolean }).sealed).toBe(true);
   });
 });
