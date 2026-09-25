@@ -9,10 +9,12 @@ import { sql } from "drizzle-orm";
 import { drizzle as drizzleHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzleServerless } from "drizzle-orm/neon-serverless";
 import {
+  check,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
@@ -77,6 +79,43 @@ export const auditLog = pgTable(
     ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("audit_tenant_ts_idx").on(t.roomId, t.ts)],
+);
+
+// ---------------------------------------------------------------------------
+// Rooms (Wave 2 T4, docs/BACKEND_PLAN.md). Join-by-code only: `ensure`
+// auto-creates on first join, `join` requires an existing code. No lobby
+// list, no invites, no codeless create. Code format stays `war-<id>` so
+// RoomProvider (app/room/[id]/Room.tsx) and the liveblocks-auth regex keep
+// matching. Mirrors drizzle/0003_rooms.sql.
+// ---------------------------------------------------------------------------
+
+export const rooms = pgTable(
+  "rooms",
+  {
+    code: text("code").primaryKey(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check("rooms_code_format", sql`${t.code} ~ '^war-[A-Za-z0-9_-]{1,64}$'`),
+  ],
+);
+
+export const roomMembers = pgTable(
+  "room_members",
+  {
+    roomCode: text("room_code")
+      .notNull()
+      .references(() => rooms.code),
+    userId: text("user_id").notNull(),
+    role: text("role").notNull().default("Observer"),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roomCode, t.userId] })],
 );
 
 // ---------------------------------------------------------------------------
