@@ -9,12 +9,16 @@ import { useSessionUser, type SessionUser } from "../lib/use-session-user";
 // T8 front wiring (Wave 4, docs/BACKEND_PLAN.md): login modal →
 // POST /api/auth/login, join bar → POST /api/rooms/ensure + /room/<code>.
 // Reuses global theme classes only (.btn/.btn.primary/.modal/.ms/.mrow/
-// .lg-brand/.lfield/.selwrap/.greet/.lerr/.lfoot/#scrim) —
-// zero <style>/token/motion edits. Slots mirror docs/reference/fix_front.html:
-// #modal-login #login-name/#login-role/#login-go/#login-cancel/#login-x,
-// #login-greet > #lg-name/#lg-role, #login-err, #join-code/#join-go/#room-new,
-// [data-users="roster"]. Entry guard mirrors template gated()/pendingAction:
-// hero CTAs dispatch baton:open-login; the modal opens only then.
+// .lg-brand/.lfield/.selwrap/.greet/.lerr/.lfoot/.joinbar/.jb-l/.jb-or/
+// .jb-you/.join-err/.shake/#scrim) — zero <style>/token/motion edits.
+// JoinBar mirrors docs/reference/fix_front.html L645-652 exactly:
+// .joinbar > .jb-l ROOM + #join-code + .btn#join-go + .jb-or +
+// .btn.primary#room-new + .join-err#join-err (.show only on real error) +
+// .jb-you#jb-you (Joining as b#jb-name live from session + button#jb-change,
+// .show only when signed in — signed out is the template's exact hidden
+// state, never a half-wired mix). Entry guard mirrors template
+// gated()/pendingAction: hero CTAs dispatch baton:open-login; the modal
+// opens only then.
 
 export function normJoinCode(input: string): string | null {
   const t = input.trim().toLowerCase();
@@ -40,7 +44,7 @@ function randomHex(n: number): string {
 export const OPEN_LOGIN_EVENT = "baton:open-login";
 
 export type OpenLoginDetail = {
-  action: "new-room";
+  action: "new-room" | "switch-identity";
 };
 
 // Human sentences for login failures — never render raw server codes
@@ -63,11 +67,13 @@ export function humanLoginError(raw: string | null | undefined): string {
 export function LoginModal({
   user,
   open,
+  forceOpen,
   onLogin,
   onClose,
 }: {
   user: SessionUser | null;
   open: boolean;
+  forceOpen?: boolean;
   onLogin: () => void;
   onClose: () => void;
 }) {
@@ -76,7 +82,7 @@ export function LoginModal({
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!open || user) return null;
+  if (!open || (user && !forceOpen)) return null;
 
   async function login() {
     const n = name.trim();
@@ -240,40 +246,48 @@ export function LoginModal({
   );
 }
 
-export function JoinBar({ userName }: { userName: string | null }) {
+export function JoinBar({
+  userName,
+  userRole,
+  onChangeIdentity,
+}: {
+  userName: string | null;
+  userRole: string | null;
+  onChangeIdentity: () => void;
+}) {
   const router = useRouter();
   const [code, setCode] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function join(raw: string) {
     const norm = normJoinCode(raw);
-    if (!norm) {
-      setErr("Enter a room code — get one from a teammate, or create a new room.");
+    if (!norm || !/^war-[a-z0-9_-]{1,64}$/.test(norm)) {
+      setErr(true);
+      inputRef.current?.classList.add("shake");
+      window.setTimeout(
+        () => inputRef.current?.classList.remove("shake"),
+        400,
+      );
       return;
     }
     if (busy) return;
     setBusy(true);
-    setErr(null);
+    setErr(false);
     try {
       const res = await fetch("/api/rooms/ensure", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: norm }),
       });
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
       if (!res.ok) {
-        setErr(body?.error ?? `join failed (${res.status})`);
+        setErr(true);
         return;
       }
-      const path = roomPath(norm);
-      setDone(path);
-      router.push(path);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      router.push(roomPath(norm));
+    } catch {
+      setErr(true);
     } finally {
       setBusy(false);
     }
@@ -281,7 +295,9 @@ export function JoinBar({ userName }: { userName: string | null }) {
 
   return (
     <div className="joinbar">
+      <span className="jb-l">ROOM</span>
       <input
+        ref={inputRef}
         id="join-code"
         placeholder="war-…"
         spellCheck={false}
@@ -289,7 +305,7 @@ export function JoinBar({ userName }: { userName: string | null }) {
         value={code}
         onChange={(e) => {
           setCode(e.target.value);
-          setErr(null);
+          setErr(false);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -301,6 +317,7 @@ export function JoinBar({ userName }: { userName: string | null }) {
       <button className="btn" id="join-go" disabled={busy} onClick={() => void join(code)} type="button">
         Join
       </button>
+      <span className="jb-or">or</span>
       <button
         className="btn primary"
         id="room-new"
@@ -310,14 +327,14 @@ export function JoinBar({ userName }: { userName: string | null }) {
       >
         New room
       </button>
-      {err && (
-        <span id="join-err" role="alert">
-          {err}
-        </span>
-      )}
-      {done && <a href={done}>Enter {done.replace("/room/", "war-")} →</a>}
-      <span>
-        Joining as <b>{userName ?? "—"}</b>
+      <span className={err ? "join-err show" : "join-err"} id="join-err">
+        Enter a room code — get one from a teammate, or create a new room.
+      </span>
+      <span className={userName ? "jb-you show" : "jb-you"} id="jb-you">
+        Joining as <b id="jb-name">{userName ? `${userName}${userRole ? ` · ${userRole}` : ""}` : "—"}</b>
+        <button id="jb-change" type="button" onClick={onChangeIdentity}>
+          change
+        </button>
       </span>
     </div>
   );
@@ -328,6 +345,7 @@ export default function SessionGate() {
   const router = useRouter();
   const name = user?.name || user?.id || null;
   const [loginOpen, setLoginOpen] = useState(false);
+  const [forceLogin, setForceLogin] = useState(false);
   const pendingRef = useRef<null | (() => void)>(null);
 
   function goNewRoom() {
@@ -346,6 +364,12 @@ export default function SessionGate() {
   useEffect(() => {
     function onOpenLogin(e: Event) {
       const detail = (e as CustomEvent<OpenLoginDetail>).detail;
+      if (detail?.action === "switch-identity") {
+        pendingRef.current = null;
+        setForceLogin(true);
+        setLoginOpen(true);
+        return;
+      }
       if (detail?.action !== "new-room") return;
       runPendingOrOpen();
     }
@@ -355,26 +379,34 @@ export default function SessionGate() {
 
   function closeLogin() {
     pendingRef.current = null;
+    setForceLogin(false);
     setLoginOpen(false);
   }
 
   function handleLoggedIn() {
     void refresh();
+    setForceLogin(false);
     setLoginOpen(false);
     const act = pendingRef.current;
     pendingRef.current = null;
     if (act) act();
   }
 
+  function switchIdentity() {
+    window.dispatchEvent(
+      new CustomEvent<OpenLoginDetail>(OPEN_LOGIN_EVENT, {
+        detail: { action: "switch-identity" },
+      }),
+    );
+  }
+
   return (
     <>
-      <JoinBar userName={name} />
-      <div data-users="roster" aria-label="Session roster">
-        {user ? `${name} · ${user.role ?? ""}` : "Not signed in"}
-      </div>
+      <JoinBar userName={name} userRole={user?.role ?? null} onChangeIdentity={switchIdentity} />
       <LoginModal
         user={user}
         open={loginOpen}
+        forceOpen={forceLogin}
         onLogin={handleLoggedIn}
         onClose={closeLogin}
       />

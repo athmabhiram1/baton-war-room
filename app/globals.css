@@ -100,6 +100,20 @@ input{font:inherit;color:inherit}
 .hstat{padding:14px 22px 0 0;margin-right:22px;font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--ink2);display:flex;align-items:center;gap:7px}
 .hstat i{width:6px;height:6px;border-radius:50%;flex:none}
 .hstat.g i{background:var(--ok)}.hstat.a i{background:var(--warn)}
+/* join bar (template fix_front.html verbatim — existing tokens/keyframes only) */
+.joinbar{margin-top:22px;max-width:560px;border:1px solid var(--line);background:var(--panel);border-radius:var(--r-m);padding:11px 12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;opacity:0;animation:rise .6s ease .52s forwards}
+.jb-l{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.16em;color:var(--ink3);padding:0 4px}
+#join-code{width:158px;background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r-s);padding:9px 12px;font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--ink);transition:border-color .2s,background .2s}
+#join-code:focus{border-color:var(--ink3);background:var(--panel);outline:none}
+#join-code::placeholder{color:var(--ink3)}
+.jb-or{font-family:var(--mono);font-size:10px;color:var(--ink3);padding:0 2px}
+.jb-you{display:none;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--ink3);width:100%;padding-top:2px}
+.jb-you.show{display:inline-flex;animation:rise .25s ease both}
+.jb-you b{color:var(--ink);font-weight:600}
+.jb-you button{color:var(--ink3);text-decoration:underline dotted;font-size:10.5px;font-family:var(--mono)}
+.jb-you button:hover{color:var(--ink)}
+.join-err{display:none;width:100%;font-family:var(--mono);font-size:10.5px;color:var(--bad)}
+.join-err.show{display:block;animation:rise .2s ease both}
 .mock{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-m);overflow:hidden;opacity:0;animation:rise .7s ease .25s forwards,floatY 8s ease-in-out 1s infinite}
 .mock-top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .mt{font-family:var(--mono);font-size:11px;color:var(--ink2);letter-spacing:.04em}

@@ -53,7 +53,7 @@ export function HeroCtas() {
   return (
     <div className="ctas">
       <button className="btn primary" id="ctaEnter" onClick={requestEntry} type="button">
-        Enter the war-room
+        New war-room
         <svg className="ic" viewBox="0 0 24 24">
           <path d="M5 12h14" />
           <path d="M13 6l6 6-6 6" />
