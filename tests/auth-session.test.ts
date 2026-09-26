@@ -234,6 +234,27 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "auth_unavailable" });
   });
+
+  it("proxies through /api/auth-prefixed URLs the passthrough can route", async () => {
+    const seenUrls: string[] = [];
+    const post = vi.fn(
+      proxyRouter({
+        "sign-in/email": async (req) => {
+          seenUrls.push((req as Request).url);
+          return okUpstream("u_123", ["sid=abc; Path=/"]);
+        },
+      }),
+    );
+    mockedAuth.handler.mockReturnValue({ POST: post } as never);
+    mockedAuth.updateUser.mockResolvedValue({ data: null, error: null } as never);
+
+    const res = await loginPOST(loginReq(LOGIN));
+    expect(res.status).toBe(200);
+    expect(seenUrls.length).toBeGreaterThan(0);
+    for (const raw of seenUrls) {
+      expect(new URL(raw).pathname.startsWith("/api/auth/")).toBe(true);
+    }
+  });
 });
 
 describe("POST /api/auth/logout", () => {

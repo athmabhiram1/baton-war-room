@@ -52,7 +52,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   // https://www.better-auth.com/docs/basic-usage#sign-in-with-email).
   async function proxy(path: string[], payload: unknown): Promise<Response> {
     const { POST: authPost } = auth.handler();
-    const upstreamReq = new Request(`https://neon-auth.local/${path.join("/")}`, {
+    // URL must carry the /api/auth prefix: the [...path] passthrough routes
+    // off the request path, so a foreign host here 404s every internal call.
+    const upstreamReq = new Request(`http://localhost/api/auth/${path.join("/")}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
