@@ -96,6 +96,14 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "auth_unavailable" });
   });
+
+  it("returns 503 auth_anonymous_disabled when upstream anonymous is 404 (provider off)", async () => {
+    const post = vi.fn(async () => new Response("", { status: 404 }));
+    mockedAuth.handler.mockReturnValue({ POST: post } as never);
+    const res = await loginPOST(loginReq({ name: "Ada", role: "Observer" }));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "auth_anonymous_disabled" });
+  });
 });
 
 describe("POST /api/auth/logout", () => {

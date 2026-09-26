@@ -57,6 +57,8 @@ export function humanLoginError(raw: string | null | undefined): string {
       return "Pick a valid role to continue.";
     case "auth_unavailable":
       return "Sign-in is unavailable right now — try again in a bit.";
+    case "auth_anonymous_disabled":
+      return "Anonymous sign-in is off — enable it in the Neon console (Auth → Sign-in methods), then retry.";
     case "login_failed":
       return "Couldn't sign you in — try again.";
     default:

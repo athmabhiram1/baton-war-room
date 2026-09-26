@@ -48,6 +48,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     return unavailable();
   }
   if (!upstream.ok) {
+    if (upstream.status === 404) {
+      return NextResponse.json({ error: "auth_anonymous_disabled" }, { status: 503 });
+    }
     return NextResponse.json({ error: "login_failed" }, { status: 500 });
   }
 
