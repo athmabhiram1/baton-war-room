@@ -1628,8 +1628,15 @@ function RoomShell({ id }: { id: string }) {
       )}
 
       {paletteOpen && (
-        <div id="palette" role="dialog" aria-label="Command palette" className="show">
-          <div className="palin">
+        <div id="scrim" className="show" onClick={() => setPaletteOpen(false)} role="presentation">
+          <div
+            id="palette"
+            role="dialog"
+            aria-label="Command palette"
+            className="show"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="palin">
             <svg className="ic" viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-4.3-4.3" />
@@ -1646,12 +1653,25 @@ function RoomShell({ id }: { id: string }) {
                 if (e.key === "Enter" && commands[0]) {
                   commands[0].run();
                   setPaletteOpen(false);
+                } else if (e.key === "Escape") {
+                  setPaletteOpen(false);
                 }
               }}
             />
-          </div>
-          <div id="palList">
-            {commands.map((c) => (
+            <button
+              className="icobtn"
+              aria-label="Close command palette"
+              title="Close (Esc)"
+              onClick={() => setPaletteOpen(false)}
+              type="button"
+            >
+              <svg className="ic" viewBox="0 0 24 24">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+            </div>
+            <div id="palList">
+              {commands.map((c) => (
               <div
                 key={c.name}
                 className="pitem"
@@ -1671,7 +1691,8 @@ function RoomShell({ id }: { id: string }) {
                 <span>{c.name}</span>
                 <span className="ph">{c.hint}</span>
               </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
