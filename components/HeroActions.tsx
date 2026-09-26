@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+
+import { OPEN_LOGIN_EVENT, type OpenLoginDetail } from "./SessionGate";
 
 // Hero client island: room entry buttons + scroll-reveal observer.
 // Everything else on the landing page is server-rendered static markup.
-export default function HeroActions() {
-  const router = useRouter();
+// Entry buttons NEVER navigate directly: they dispatch baton:open-login and
+// SessionGate runs the template gated() flow (open login modal first when
+// signed out, then continue to a new room after login).
+function requestEntry() {
+  window.dispatchEvent(
+    new CustomEvent<OpenLoginDetail>(OPEN_LOGIN_EVENT, {
+      detail: { action: "new-room" },
+    }),
+  );
+}
 
+export default function HeroActions() {
   useEffect(() => {
     const els = Array.from(document.querySelectorAll(".rv"));
     if (!("IntersectionObserver" in window)) {
@@ -29,36 +39,20 @@ export default function HeroActions() {
     return () => io.disconnect();
   }, []);
 
-  function enter() {
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID().slice(0, 8)
-        : Math.random().toString(16).slice(2, 10);
-    router.push(`/room/${id}`);
-  }
-
   return (
-    <button className="btn primary" id="navLaunch" onClick={enter} type="button">
+    <button className="btn primary" id="navLaunch" onClick={requestEntry} type="button">
       Launch demo
     </button>
   );
 }
 
 export function HeroCtas() {
-  const router = useRouter();
-  function enter() {
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID().slice(0, 8)
-        : Math.random().toString(16).slice(2, 10);
-    router.push(`/room/${id}`);
-  }
   function scrollToLoop() {
     document.querySelector("#loop")?.scrollIntoView({ behavior: "smooth" });
   }
   return (
     <div className="ctas">
-      <button className="btn primary" id="ctaEnter" onClick={enter} type="button">
+      <button className="btn primary" id="ctaEnter" onClick={requestEntry} type="button">
         Enter the war-room
         <svg className="ic" viewBox="0 0 24 24">
           <path d="M5 12h14" />

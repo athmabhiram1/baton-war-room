@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SESSION_ROLES } from "../lib/auth/roles";
 import { useSessionUser, type SessionUser } from "../lib/use-session-user";
@@ -11,8 +11,10 @@ import { useSessionUser, type SessionUser } from "../lib/use-session-user";
 // Reuses global theme classes only (.btn/.btn.primary/.modal/.ms/.mrow/
 // .lg-brand/.lfield/.selwrap/.greet/.lerr/.lfoot/#scrim) —
 // zero <style>/token/motion edits. Slots mirror docs/reference/fix_front.html:
-// #modal-login #login-name/#login-role/#login-go, #join-code/#join-go/#room-new,
-// [data-users="roster"].
+// #modal-login #login-name/#login-role/#login-go/#login-cancel/#login-x,
+// #login-greet > #lg-name/#lg-role, #login-err, #join-code/#join-go/#room-new,
+// [data-users="roster"]. Entry guard mirrors template gated()/pendingAction:
+// hero CTAs dispatch baton:open-login; the modal opens only then.
 
 export function normJoinCode(input: string): string | null {
   const t = input.trim().toLowerCase();
@@ -32,19 +34,49 @@ function randomHex(n: number): string {
   return Math.random().toString(16).slice(2, 2 + n);
 }
 
+// Entry-guard event (mirrors template gated()/pendingAction in
+// docs/reference/fix_front.html): hero CTAs dispatch this; SessionGate opens
+// the login modal, then runs the pending action after a successful login.
+export const OPEN_LOGIN_EVENT = "baton:open-login";
+
+export type OpenLoginDetail = {
+  action: "new-room";
+};
+
+// Human sentences for login failures — never render raw server codes
+// (auth_unavailable, login_failed, …) or raw exception text in #login-err.
+export function humanLoginError(raw: string | null | undefined): string {
+  switch (raw) {
+    case "name_required":
+      return "Give yourself a name (2+ characters) to continue.";
+    case "invalid_role":
+      return "Pick a valid role to continue.";
+    case "auth_unavailable":
+      return "Sign-in is unavailable right now — try again in a bit.";
+    case "login_failed":
+      return "Couldn't sign you in — try again.";
+    default:
+      return "Couldn't sign you in — try again.";
+  }
+}
+
 export function LoginModal({
   user,
+  open,
   onLogin,
+  onClose,
 }: {
   user: SessionUser | null;
+  open: boolean;
   onLogin: () => void;
+  onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState<string>(SESSION_ROLES[0]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return null;
+  if (!open || user) return null;
 
   async function login() {
     const n = name.trim();
@@ -67,12 +99,12 @@ export function LoginModal({
         error?: string;
       } | null;
       if (!res.ok) {
-        setErr(body?.error ?? `login failed (${res.status})`);
+        setErr(humanLoginError(body?.error));
         return;
       }
       onLogin();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+    } catch {
+      setErr("Couldn't reach the server — check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -83,6 +115,7 @@ export function LoginModal({
   function cancel() {
     setName("");
     setErr(null);
+    onClose();
   }
 
   return (
@@ -93,7 +126,21 @@ export function LoginModal({
         role="dialog"
         aria-modal="true"
         aria-label="Take a seat in the war-room"
+        style={{ position: "relative" }}
       >
+        <button
+          className="icobtn"
+          id="login-x"
+          type="button"
+          aria-label="Close login dialog"
+          onClick={onClose}
+          style={{ position: "absolute", top: 10, right: 10 }}
+        >
+          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
+          </svg>
+        </button>
         <div className="lg-brand">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
@@ -119,6 +166,7 @@ export function LoginModal({
           placeholder="Your name…"
           autoComplete="off"
           spellCheck={false}
+          autoFocus
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -158,7 +206,7 @@ export function LoginModal({
           id="login-err"
           role="alert"
         >
-          {err ?? "Give yourself a name (2+ characters) to continue."}
+          {err ?? ""}
         </div>
         <div className="mrow" style={{ marginTop: 14 }}>
           <button
@@ -277,14 +325,59 @@ export function JoinBar({ userName }: { userName: string | null }) {
 
 export default function SessionGate() {
   const { user, refresh } = useSessionUser();
+  const router = useRouter();
   const name = user?.name || user?.id || null;
+  const [loginOpen, setLoginOpen] = useState(false);
+  const pendingRef = useRef<null | (() => void)>(null);
+
+  function goNewRoom() {
+    router.push(roomPath(`war-${randomHex(6)}`));
+  }
+
+  function runPendingOrOpen() {
+    if (user) {
+      goNewRoom();
+      return;
+    }
+    pendingRef.current = goNewRoom;
+    setLoginOpen(true);
+  }
+
+  useEffect(() => {
+    function onOpenLogin(e: Event) {
+      const detail = (e as CustomEvent<OpenLoginDetail>).detail;
+      if (detail?.action !== "new-room") return;
+      runPendingOrOpen();
+    }
+    window.addEventListener(OPEN_LOGIN_EVENT, onOpenLogin);
+    return () => window.removeEventListener(OPEN_LOGIN_EVENT, onOpenLogin);
+  });
+
+  function closeLogin() {
+    pendingRef.current = null;
+    setLoginOpen(false);
+  }
+
+  function handleLoggedIn() {
+    void refresh();
+    setLoginOpen(false);
+    const act = pendingRef.current;
+    pendingRef.current = null;
+    if (act) act();
+  }
+
   return (
     <>
       <JoinBar userName={name} />
       <div data-users="roster" aria-label="Session roster">
         {user ? `${name} · ${user.role ?? ""}` : "Not signed in"}
       </div>
-      <LoginModal user={user} onLogin={() => void refresh()} />
+      <LoginModal
+        user={user}
+        open={loginOpen}
+        onLogin={handleLoggedIn}
+        onClose={closeLogin}
+      />
     </>
   );
 }

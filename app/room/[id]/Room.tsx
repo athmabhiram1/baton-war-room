@@ -1677,7 +1677,7 @@ function RoomShell({ id }: { id: string }) {
       )}
       <div id="drawerScrim" onClick={() => setDrawer(false)} role="presentation" />
       {meChecked && !me && (
-        <LoginModal user={me} onLogin={() => void refreshMe()} />
+        <LoginModal user={me} open onLogin={() => void refreshMe()} onClose={() => { window.location.href = "/"; }} />
       )}
     </div>
   );
