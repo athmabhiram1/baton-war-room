@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { SESSION_ROLES } from "../lib/auth/roles";
 import { useSessionUser, type SessionUser } from "../lib/use-session-user";
+import GoogleSignIn from "./GoogleSignIn";
 
 // T8 front wiring (Wave 4, docs/BACKEND_PLAN.md): login modal →
 // POST /api/auth/login, join bar → POST /api/rooms/ensure + /room/<code>.
@@ -55,10 +56,18 @@ export function humanLoginError(raw: string | null | undefined): string {
       return "Give yourself a name (2+ characters) to continue.";
     case "invalid_role":
       return "Pick a valid role to continue.";
+    case "email_required":
+      return "Enter your email address to continue.";
+    case "invalid_email":
+      return "That email doesn't look right — check it and try again.";
+    case "password_required":
+      return "Enter your password to continue.";
+    case "password_too_short":
+      return "Use a password with 8+ characters.";
+    case "invalid_credentials":
+      return "Wrong email or password — try again, or use a new email to create an account.";
     case "auth_unavailable":
       return "Sign-in is unavailable right now — try again in a bit.";
-    case "auth_anonymous_disabled":
-      return "Anonymous sign-in is off — enable it in the Neon console (Auth → Sign-in methods), then retry.";
     case "login_failed":
       return "Couldn't sign you in — try again.";
     default:
@@ -81,6 +90,8 @@ export function LoginModal({
 }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState<string>(SESSION_ROLES[0]);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -92,6 +103,23 @@ export function LoginModal({
       setErr("Give yourself a name (2+ characters) to continue.");
       return;
     }
+    const e = email.trim();
+    if (!e) {
+      setErr(humanLoginError("email_required"));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+      setErr(humanLoginError("invalid_email"));
+      return;
+    }
+    if (!password) {
+      setErr(humanLoginError("password_required"));
+      return;
+    }
+    if (password.length < 8) {
+      setErr(humanLoginError("password_too_short"));
+      return;
+    }
     if (busy) return;
     setBusy(true);
     setErr(null);
@@ -99,9 +127,9 @@ export function LoginModal({
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // Contract: only name/role — never a userId; identity comes from the
-        // session cookie the server sets on 200.
-        body: JSON.stringify({ name: n, role }),
+        // Contract: only name/role/email/password — never a userId; identity
+        // comes from the session cookie the server sets on 200.
+        body: JSON.stringify({ name: n, role, email: e, password }),
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
@@ -122,6 +150,8 @@ export function LoginModal({
 
   function cancel() {
     setName("");
+    setEmail("");
+    setPassword("");
     setErr(null);
     onClose();
   }
@@ -164,8 +194,9 @@ export function LoginModal({
         </div>
         <h3>Take a seat in the war-room</h3>
         <p className="ms">
-          Pick a name and role. Open a second tab with a different name and
-          you&apos;re two people in the same room.
+          Sign in with your email and password — a new email creates an
+          account. Open a second tab with a different email and you&apos;re
+          two people in the same room.
         </p>
         <input
           id="login-name"
@@ -183,6 +214,41 @@ export function LoginModal({
           onKeyDown={(e) => {
             if (e.key === "Enter") void login();
           }}
+        />
+        <label className="ms" htmlFor="login-email" style={{ margin: "9px 0 0" }}>
+          Email for sign-in
+        </label>
+        <input
+          id="login-email"
+          className="lfield"
+          type="email"
+          placeholder="you@example.com"
+          autoComplete="email"
+          spellCheck={false}
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setErr(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void login();
+          }}
+        />
+        <input
+          id="login-password"
+          className="lfield"
+          type="password"
+          placeholder="Password (8+ characters)…"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setErr(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void login();
+          }}
+          style={{ marginTop: 9 }}
         />
         <div className="selwrap">
           <select
@@ -239,9 +305,10 @@ export function LoginModal({
             </svg>
           </button>
         </div>
+        <GoogleSignIn />
         <p className="lfoot">
-          Demo identity is stored in <b>sessionStorage</b> for this tab only.
-          In production this becomes your Liveblocks identity.
+          Your session lives in a cookie for this browser only. In production
+          this becomes your Liveblocks identity.
         </p>
       </div>
     </div>
