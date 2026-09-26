@@ -23,6 +23,7 @@ import { isMember } from "@/lib/rooms";
 import {
   ApprovalDenied,
   executeApproval,
+  findOpenApproval,
   getApproval,
   proposeApproval,
   ratifyApproval,
@@ -130,6 +131,34 @@ async function resolveActor(
   return { ok: true, actor, trusted: true };
 }
 
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const roomId =
+    url.searchParams.get("roomId") ||
+    req.headers.get("x-room-id") ||
+    req.headers.get("x-war-room-id") ||
+    "";
+  if (!roomId) return NextResponse.json({ error: "missing roomId" }, { status: 400 });
+  const resolved = await resolveActor(req, roomId, null);
+  if (!resolved.ok) return resolved.response;
+  const payloadHash = url.searchParams.get("payloadHash") ?? undefined;
+  const rec = findOpenApproval(roomId, payloadHash ?? undefined);
+  if (!rec) return NextResponse.json({ open: null }, { status: 200 });
+  return NextResponse.json(
+    {
+      open: {
+        id: rec.id,
+        status: rec.status,
+        signatures: signaturesOf(rec),
+        windowEndsAt: rec.windowEndsAt,
+        payloadHash: rec.payloadHash,
+        action: rec.action,
+      },
+    },
+    { status: 200 },
+  );
+}
+
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -161,6 +190,19 @@ export async function POST(req: Request) {
     if (step === "propose") {
       const action = typeof b.action === "string" ? b.action : "";
       const payloadHash = typeof b.payloadHash === "string" ? b.payloadHash : "";
+      const joined = payloadHash ? findOpenApproval(roomId, payloadHash) : undefined;
+      if (joined && joined.action === action) {
+        return NextResponse.json(
+          {
+            id: joined.id,
+            status: joined.status,
+            signatures: signaturesOf(joined),
+            windowEndsAt: joined.windowEndsAt,
+            joined: true,
+          },
+          { status: 200 },
+        );
+      }
       const rec = await proposeApproval({ roomId, action, payloadHash, proposer: actor });
       return NextResponse.json(
         { id: rec.id, status: rec.status, signatures: "1/2", windowEndsAt: rec.windowEndsAt },

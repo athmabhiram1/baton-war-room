@@ -90,6 +90,22 @@ export function isHighRisk(action: string): boolean {
   );
 }
 
+/** Room's ONE shared open approval (newest live pending/ratified row inside
+ * its window). Both tabs adopt it on mount so two parallel 1/2s can never
+ * fork. Expired, executed, and escalated rows are never open. */
+export function findOpenApproval(roomId: string, payloadHash?: string): ApprovalRecord | undefined {
+  const now = Date.now();
+  let best: ApprovalRecord | undefined;
+  for (const rec of store.values()) {
+    if (rec.roomId !== roomId) continue;
+    if (payloadHash !== undefined && rec.payloadHash !== payloadHash) continue;
+    if (rec.status !== "pending" && rec.status !== "ratified") continue;
+    if (now > rec.windowEndsAt) continue;
+    if (!best || rec.updatedAt > best.updatedAt) best = rec;
+  }
+  return best;
+}
+
 export async function proposeApproval(input: {
   roomId: string;
   action: string;
@@ -99,7 +115,12 @@ export async function proposeApproval(input: {
   if (!input.roomId || !input.action || !input.payloadHash || !input.proposer) {
     throw new ApprovalDenied("propose requires roomId, action, payloadHash, proposer", { statusCode: 400 });
   }
+  // Idempotent join: a second tab proposing the same room+action+payloadHash
+  // while one is open adopts the existing row instead of forking a parallel
+  // 1/2 that can never meet quorum.
   const now = Date.now();
+  const open = findOpenApproval(input.roomId, input.payloadHash);
+  if (open && open.action === input.action) return open;
   const rec: ApprovalRecord = {
     id: `appr_${now.toString(36)}_${(seq += 1)}`,
     roomId: input.roomId,
