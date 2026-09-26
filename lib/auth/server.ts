@@ -1,17 +1,16 @@
 import { createNeonAuth } from '@neondatabase/auth/next/server';
 
-// Env-driven (T2): Wave 0 blocker NEON_AUTH_BASE_URL may be absent locally.
-// Fail closed in production; use clearly-labeled dev/test fallbacks so route
-// modules import (validation/401 paths stay verifiable) while live session
-// calls report auth_unavailable until the env lands. NOT a real secret.
-const isProd = process.env.NODE_ENV === 'production';
+// Env-driven (T2): Wave 0 blocker NEON_AUTH_BASE_URL may be absent locally
+// or in edge build environments. NEVER throw at import time — Vercel's
+// page-data collection imports every route, so an import-time throw breaks
+// `next build` even though no request is served. Validation happens per
+// request: routes fail closed (401/503) when env is absent, and live
+// session calls report auth_unavailable until the env lands.
+// NOT a real secret — placeholder below is clearly labeled and dev-only.
 const baseUrl = process.env.NEON_AUTH_BASE_URL;
 const secret = process.env.NEON_AUTH_COOKIE_SECRET;
 
-if (isProd && (!baseUrl || !secret)) {
-  throw new Error('NEON_AUTH_BASE_URL and NEON_AUTH_COOKIE_SECRET are required in production');
-}
-if (!secret && !isProd) {
+if (!secret) {
   console.warn('[auth] NEON_AUTH_COOKIE_SECRET absent — dev/test placeholder in use; live sessions deferred.');
 }
 
