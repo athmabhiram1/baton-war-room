@@ -514,6 +514,27 @@ html[data-theme="dark"] #scrim{background:rgba(8,8,6,.65)}
 .modal .ms b{color:var(--ink)}
 .mrow2{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
 .mrow2 .btn{min-width:112px}
+.mrow{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
+.mrow .btn{min-width:112px}
+/* login modal (same fields, ids preserved) */
+.lg-brand{display:flex;align-items:center;gap:9px;margin-bottom:16px}
+.lg-brand svg{width:18px;height:18px}
+.lg-brand b{font-size:14.5px;font-weight:700}
+.lfield{width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r-s);padding:11px 14px;font-size:14.5px;color:var(--ink);transition:border-color .2s,background .2s,box-shadow .2s}
+.lfield::placeholder{color:var(--ink3)}
+.lfield:focus{border-color:var(--ink3);background:var(--panel);box-shadow:0 0 0 4px color-mix(in srgb,var(--ink) 6%,transparent);outline:none}
+select.lfield{appearance:none;-webkit-appearance:none;cursor:pointer}
+.selwrap{position:relative;margin-top:9px}
+.selwrap .lfield{padding-right:36px}
+.selwrap>.ic{position:absolute;right:13px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink3);width:14px;height:14px}
+.greet{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink3);min-height:18px;margin-top:13px}
+.greet .gd{width:6px;height:6px;border-radius:50%;background:var(--warn);animation:breath 2s infinite;flex:none}
+.greet b{color:var(--ink);font-weight:600}
+.greet.swap>span:last-child{animation:fade .25s ease both}
+.lerr{display:none;font-family:var(--mono);font-size:10.5px;color:var(--bad);margin-top:8px}
+.lerr.show{display:block;animation:rise .2s ease both}
+.lfoot{font-family:var(--mono);font-size:9.5px;line-height:1.8;color:var(--ink3);margin-top:15px;border-top:1px solid var(--line);padding-top:12px}
+.lfoot b{color:var(--ink2);font-weight:500}
 .cogrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden;margin:14px 0}
 .cogrid div{background:var(--panel2);padding:11px 13px}
 .cogrid .k{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--ink3)}

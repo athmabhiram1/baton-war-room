@@ -8,7 +8,8 @@ import { useSessionUser, type SessionUser } from "../lib/use-session-user";
 
 // T8 front wiring (Wave 4, docs/BACKEND_PLAN.md): login modal →
 // POST /api/auth/login, join bar → POST /api/rooms/ensure + /room/<code>.
-// Reuses existing global classes only (.btn/.modal/.ms/.mrow2/#scrim) —
+// Reuses global theme classes only (.btn/.btn.primary/.modal/.ms/.mrow/
+// .lg-brand/.lfield/.selwrap/.greet/.lerr/.lfoot/#scrim) —
 // zero <style>/token/motion edits. Slots mirror docs/reference/fix_front.html:
 // #modal-login #login-name/#login-role/#login-go, #join-code/#join-go/#room-new,
 // [data-users="roster"].
@@ -77,6 +78,13 @@ export function LoginModal({
     }
   }
 
+  const greetName = name.trim() || "—";
+
+  function cancel() {
+    setName("");
+    setErr(null);
+  }
+
   return (
     <div id="scrim" className="show" role="presentation">
       <div
@@ -86,6 +94,19 @@ export function LoginModal({
         aria-modal="true"
         aria-label="Take a seat in the war-room"
       >
+        <div className="lg-brand">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M7 17 17 7"
+              stroke="var(--warn)"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+            />
+            <circle cx="5.5" cy="18.5" r="2" fill="var(--warn)" />
+            <circle cx="18.5" cy="5.5" r="2" fill="var(--warn)" />
+          </svg>
+          <b>Baton</b>
+        </div>
         <h3>Take a seat in the war-room</h3>
         <p className="ms">
           Pick a name and role. Open a second tab with a different name and
@@ -93,6 +114,7 @@ export function LoginModal({
         </p>
         <input
           id="login-name"
+          className="lfield"
           type="text"
           placeholder="Your name…"
           autoComplete="off"
@@ -109,6 +131,7 @@ export function LoginModal({
         <div className="selwrap">
           <select
             id="login-role"
+            className="lfield"
             aria-label="Role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
@@ -119,13 +142,33 @@ export function LoginModal({
               </option>
             ))}
           </select>
+          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </div>
-        {err && (
-          <p id="login-err" role="alert">
-            {err}
-          </p>
-        )}
-        <div className="mrow2">
+        <div className="greet" id="login-greet">
+          <span className="gd"></span>
+          <span>
+            Joining as <b id="lg-name">{greetName}</b> ·{" "}
+            <span id="lg-role">{role}</span>
+          </span>
+        </div>
+        <div
+          className={err ? "lerr show" : "lerr"}
+          id="login-err"
+          role="alert"
+        >
+          {err ?? "Give yourself a name (2+ characters) to continue."}
+        </div>
+        <div className="mrow" style={{ marginTop: 14 }}>
+          <button
+            className="btn"
+            id="login-cancel"
+            type="button"
+            onClick={cancel}
+          >
+            Cancel
+          </button>
           <button
             className="btn primary"
             id="login-go"
@@ -134,8 +177,16 @@ export function LoginModal({
             type="button"
           >
             {busy ? "Joining…" : "Continue"}
+            <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
           </button>
         </div>
+        <p className="lfoot">
+          Demo identity is stored in <b>sessionStorage</b> for this tab only.
+          In production this becomes your Liveblocks identity.
+        </p>
       </div>
     </div>
   );
