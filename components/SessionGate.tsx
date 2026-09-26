@@ -45,7 +45,8 @@ function randomHex(n: number): string {
 export const OPEN_LOGIN_EVENT = "baton:open-login";
 
 export type OpenLoginDetail = {
-  action: "new-room" | "switch-identity";
+  action: "new-room" | "join-room" | "switch-identity";
+  code?: string;
 };
 
 // Human sentences for login failures — never render raw server codes
@@ -362,6 +363,32 @@ export function JoinBar({
     }
   }
 
+  // Entry guard (mirrors hero gated()/pendingAction): signed-out clicks never
+  // hit /api/rooms/ensure directly — they queue a pending join-room with the
+  // code and open the login modal; SessionGate runs ensure+push after login.
+  // Signed-in clicks go immediate (ensure+push, unchanged).
+  function requestEntry(raw: string) {
+    const norm = normJoinCode(raw);
+    if (!norm || !/^war-[a-z0-9_-]{1,64}$/.test(norm)) {
+      setErr(true);
+      inputRef.current?.classList.add("shake");
+      window.setTimeout(
+        () => inputRef.current?.classList.remove("shake"),
+        400,
+      );
+      return;
+    }
+    if (userName) {
+      void join(norm);
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent<OpenLoginDetail>(OPEN_LOGIN_EVENT, {
+        detail: { action: "join-room", code: norm },
+      }),
+    );
+  }
+
   return (
     <div className="joinbar">
       <span className="jb-l">ROOM</span>
@@ -379,11 +406,11 @@ export function JoinBar({
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            void join(code);
+            void requestEntry(code);
           }
         }}
       />
-      <button className="btn" id="join-go" disabled={busy} onClick={() => void join(code)} type="button">
+      <button className="btn" id="join-go" disabled={busy} onClick={() => void requestEntry(code)} type="button">
         Join
       </button>
       <span className="jb-or">or</span>
@@ -391,7 +418,7 @@ export function JoinBar({
         className="btn primary"
         id="room-new"
         disabled={busy}
-        onClick={() => void join(`war-${randomHex(6)}`)}
+        onClick={() => void requestEntry(`war-${randomHex(6)}`)}
         type="button"
       >
         New room
@@ -415,10 +442,20 @@ export default function SessionGate() {
   const name = user?.name || user?.id || null;
   const [loginOpen, setLoginOpen] = useState(false);
   const [forceLogin, setForceLogin] = useState(false);
-  const pendingRef = useRef<null | (() => void)>(null);
+  const pendingRef = useRef<null | (() => void | Promise<void>)>(null);
 
   function goNewRoom() {
     router.push(roomPath(`war-${randomHex(6)}`));
+  }
+
+  async function ensureAndGo(code: string) {
+    const res = await fetch("/api/rooms/ensure", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) return;
+    router.push(roomPath(code));
   }
 
   function runPendingOrOpen() {
@@ -436,6 +473,16 @@ export default function SessionGate() {
       if (detail?.action === "switch-identity") {
         pendingRef.current = null;
         setForceLogin(true);
+        setLoginOpen(true);
+        return;
+      }
+      if (detail?.action === "join-room") {
+        const target = normJoinCode(detail.code ?? "") ?? `war-${randomHex(6)}`;
+        if (user) {
+          void ensureAndGo(target);
+          return;
+        }
+        pendingRef.current = () => ensureAndGo(target);
         setLoginOpen(true);
         return;
       }
@@ -458,7 +505,7 @@ export default function SessionGate() {
     setLoginOpen(false);
     const act = pendingRef.current;
     pendingRef.current = null;
-    if (act) act();
+    if (act) void act();
   }
 
   function switchIdentity() {
