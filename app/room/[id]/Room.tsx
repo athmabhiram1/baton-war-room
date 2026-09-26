@@ -333,13 +333,36 @@ function RoomShell({ id }: { id: string }) {
     return () => clearInterval(iv);
   }, [hoState, refreshHandoff]);
 
-  // Room-level approval status poll (mirrors the CoSignTile 5s poll) so the
-  // banner countdown, signer badges, and rollback row stay live.
+  // Room-level approval poll against the room's shared open approval (same
+  // source the CoSignTile adopts on mount) so the banner countdown, signer
+  // badges, and rollback row stay live. Silent on every miss — never red text.
   useEffect(() => {
-    if (!approval.id || approval.status === "executed" || approval.status === "expired") return;
+    if (approval.status === "executed" || approval.status === "expired") return;
+    if (!approval.payloadHash && !approval.id) return;
     const iv = setInterval(() => {
       void (async () => {
         try {
+          const qs = approval.payloadHash
+            ? `?roomId=${encodeURIComponent(roomId)}&payloadHash=${encodeURIComponent(approval.payloadHash)}`
+            : `?roomId=${encodeURIComponent(roomId)}`;
+          const openRes = await fetch(`/api/approvals${qs}`, { method: "GET" });
+          if (openRes.ok) {
+            const openBody = (await openRes.json()) as {
+              open?: { id: string; status: string; signatures: string; windowEndsAt: number } | null;
+            };
+            if (openBody.open) {
+              const open = openBody.open;
+              setApproval((prev: CoSignLive) => ({
+                ...prev,
+                id: open.id,
+                status: open.status,
+                signatures: open.signatures,
+                windowEndsAt: open.windowEndsAt,
+              }));
+              return;
+            }
+          }
+          if (!approval.id) return;
           const res = await fetch("/api/approvals", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -364,7 +387,7 @@ function RoomShell({ id }: { id: string }) {
       })();
     }, 5000);
     return () => clearInterval(iv);
-  }, [approval.id, approval.status, roomId]);
+  }, [approval.id, approval.status, approval.payloadHash, roomId]);
 
   // Slow poll for HUD-adjacent live data (metrics coverage + reconciler).
   useEffect(() => {

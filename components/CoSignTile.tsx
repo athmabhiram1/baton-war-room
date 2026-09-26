@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { actionPayloadHashBrowser, canonicalActionPayload } from "../lib/action-payload";
 
@@ -12,23 +12,30 @@ export type CoSignLive = {
   payloadHash: string;
 };
 
-// Co-sign UI tile: propose → sign (2nd distinct human) → execute against
-// /api/approvals. High-risk actions need 2/2 on the same payloadHash inside
-// the window; 1/2 execute stays blocked. PENDING polls status every 5s
-// (APPROVAL_POLL_MS fallback) so webhook resume isn't the only path.
-// The payloadHash is derived live (SHA-256 of the canonical action payload)
-// unless the caller passes one explicitly; signature/window state lifts via
-// onApproval so the room chrome never shows static-posing-as-live numbers.
+type OpenApproval = {
+  id: string;
+  status: string;
+  signatures: string;
+  windowEndsAt: number;
+  payloadHash: string;
+  action: string;
+};
+
+// Co-sign UI tile: adopt the room's ONE shared open approval → ratify as the
+// logged-in session user → execute at 2/2. Both tabs fetch the same open row
+// on mount so two parallel 1/2s can never fork; propose only fires when none
+// is open (server joins duplicates idempotently as a second net).
 // T8 session binding: NO actor is ever sent — the server stamps the caller
 // from the Neon Auth session (a mismatched body.actor is 403 actor_spoof).
-// me/peer are display labels only (session user passed by the caller).
+// The sign button ratifies strictly as `me` (the session user); there is no
+// sign-as-teammate path. When no approval is open the tile renders idle state
+// only — never red "approval not found" text.
 export default function CoSignTile({
   roomId,
   action = "rollback",
   target = "v41.8→v41.7",
   payloadHash,
   me = "arun.m",
-  peer = "priya.k",
   onApproval,
 }: {
   roomId: string;
@@ -59,6 +66,36 @@ export default function CoSignTile({
     onApproval?.({ ...liveRef.current });
   }
 
+  function adopt(open: OpenApproval) {
+    setId(open.id);
+    setSigs(open.signatures);
+    setStatus(open.status);
+    setWindowEndsAt(open.windowEndsAt);
+    liveRef.current = {
+      id: open.id,
+      signatures: open.signatures,
+      status: open.status,
+      windowEndsAt: open.windowEndsAt,
+      payloadHash: hash || open.payloadHash,
+    };
+    report();
+  }
+
+  const fetchOpen = useCallback(async (): Promise<OpenApproval | null> => {
+    if (!hash) return null;
+    try {
+      const res = await fetch(
+        `/api/approvals?roomId=${encodeURIComponent(roomId)}&payloadHash=${encodeURIComponent(hash)}`,
+        { method: "GET" },
+      );
+      if (!res.ok) return null;
+      const body = (await res.json()) as { open?: OpenApproval | null };
+      return body.open ?? null;
+    } catch {
+      return null;
+    }
+  }, [roomId, hash]);
+
   useEffect(() => {
     if (payloadHash) {
       setHash(payloadHash);
@@ -76,10 +113,34 @@ export default function CoSignTile({
     };
   }, [roomId, action, target, payloadHash, onApproval]);
 
+  // Mount: adopt the room's shared open approval so both tabs show the same
+  // row (Pow SIGNED / PREEVAN WAITING) instead of forking per-tab 1/2s.
+  useEffect(() => {
+    if (!hash) return;
+    let live = true;
+    void (async () => {
+      const open = await fetchOpen();
+      if (!live || !open) return;
+      adopt(open);
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash, fetchOpen]);
+
   async function call(step: string) {
     if (!hash || busy) return;
     setBusy(true);
     try {
+      if (step === "propose") {
+        const open = await fetchOpen();
+        if (open) {
+          adopt(open);
+          setNote({ ok: true, text: `joined open approval: ${open.signatures}` });
+          return;
+        }
+      }
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -93,6 +154,24 @@ export default function CoSignTile({
         error?: string;
       } | null;
       if (!res.ok) {
+        // Stale/missing id (e.g. swept or executed elsewhere): re-sync to the
+        // shared open approval and stay silent instead of red "not found" text.
+        if (res.status === 404) {
+          const open = await fetchOpen();
+          if (open) {
+            adopt(open);
+            setNote(null);
+            return;
+          }
+          setId(null);
+          setSigs("0/2");
+          setStatus("idle");
+          setWindowEndsAt(null);
+          setNote(null);
+          liveRef.current = { id: null, signatures: "0/2", status: "idle", windowEndsAt: null, payloadHash: hash };
+          report();
+          return;
+        }
         setNote({ ok: false, text: body?.error ?? `${step} failed (${res.status})` });
         return;
       }
@@ -116,16 +195,45 @@ export default function CoSignTile({
     }
   }
 
+  // Shared-open poll every 5s: both tabs converge on the same row without
+  // reload. No open row + idle state renders nothing (never red text).
   useEffect(() => {
-    if (!id || status === "executed" || status === "expired") return;
+    if (!hash || status === "executed" || status === "expired") return;
     const iv = setInterval(() => {
       void (async () => {
+        const open = await fetchOpen();
+        if (open) {
+          setId(open.id);
+          setSigs(open.signatures);
+          setStatus(open.status);
+          setWindowEndsAt(open.windowEndsAt);
+          liveRef.current = {
+            ...liveRef.current,
+            id: open.id,
+            signatures: open.signatures,
+            status: open.status,
+            windowEndsAt: open.windowEndsAt,
+          };
+          report();
+          return;
+        }
+        if (!id) return;
         try {
           const res = await fetch("/api/approvals", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ roomId, step: "status", approvalId: id }),
           });
+          if (res.status === 404) {
+            setId(null);
+            setSigs("0/2");
+            setStatus("idle");
+            setWindowEndsAt(null);
+            setNote(null);
+            liveRef.current = { id: null, signatures: "0/2", status: "idle", windowEndsAt: null, payloadHash: hash };
+            report();
+            return;
+          }
           if (!res.ok) return;
           const body = (await res.json()) as { status?: string; signatures?: string; windowEndsAt?: number };
           if (body.signatures) setSigs(body.signatures);
@@ -140,12 +248,13 @@ export default function CoSignTile({
           };
           report();
         } catch {
-          // Poll is best-effort; webhook/ratify is the primary resume.
+          // Poll is best-effort; ratify/execute is the primary resume.
         }
       })();
     }, 5000);
     return () => clearInterval(iv);
-  }, [id, status, roomId, onApproval]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash, id, status, roomId, fetchOpen]);
 
   return (
     <div
@@ -181,7 +290,7 @@ export default function CoSignTile({
               onClick={() => void call("ratify")}
               type="button"
             >
-              {busy ? "Signing…" : `Sign as ${peer}`}
+              {busy ? "Signing…" : `Sign as ${me}`}
             </button>
             <button
               className="btn blk"
