@@ -1,4 +1,5 @@
 import HeroActions, { HeroCtas } from "../components/HeroActions";
+import SessionGate from "../components/SessionGate";
 import ThemeToggle from "../components/ThemeToggle";
 
 // Server component: hero/landing. Client interactivity lives in
@@ -41,6 +42,7 @@ export default function Home() {
             <b>zero repeat questions</b>, and no room closes without an explicit ACK.
           </p>
           <HeroCtas />
+          <SessionGate />
           <div className="hstats" title="SLO targets — live values in the room SLO tab">
             <span className="hstat g" title="SLO target — live values in the room SLO tab">
               <i />p50 ≤ 800 ms

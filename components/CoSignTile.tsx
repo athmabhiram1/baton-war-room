@@ -19,6 +19,9 @@ export type CoSignLive = {
 // The payloadHash is derived live (SHA-256 of the canonical action payload)
 // unless the caller passes one explicitly; signature/window state lifts via
 // onApproval so the room chrome never shows static-posing-as-live numbers.
+// T8 session binding: NO actor is ever sent — the server stamps the caller
+// from the Neon Auth session (a mismatched body.actor is 403 actor_spoof).
+// me/peer are display labels only (session user passed by the caller).
 export default function CoSignTile({
   roomId,
   action = "rollback",
@@ -73,14 +76,14 @@ export default function CoSignTile({
     };
   }, [roomId, action, target, payloadHash, onApproval]);
 
-  async function call(step: string, extra?: Record<string, string>) {
+  async function call(step: string) {
     if (!hash || busy) return;
     setBusy(true);
     try {
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ roomId, action, payloadHash: hash, actor: me, step, approvalId: id, ...extra }),
+        body: JSON.stringify({ roomId, action, payloadHash: hash, step, approvalId: id }),
       });
       const body = (await res.json().catch(() => null)) as {
         id?: string;
@@ -175,7 +178,7 @@ export default function CoSignTile({
             <button
               className="btn primary blk"
               disabled={busy || sigs === "2/2"}
-              onClick={() => void call("ratify", { actor: peer, payloadHash: hash } as Record<string, string>)}
+              onClick={() => void call("ratify")}
               type="button"
             >
               {busy ? "Signing…" : `Sign as ${peer}`}

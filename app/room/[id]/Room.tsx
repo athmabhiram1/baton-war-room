@@ -14,8 +14,11 @@ import CoSignTile, { type CoSignLive } from "../../../components/CoSignTile";
 import LatencyHud from "../../../components/LatencyHud";
 import OfflineBadge from "../../../components/OfflineBadge";
 import PresenceAvatars from "../../../components/PresenceAvatars";
+import RosterLive, { PeerName, PeerRole } from "../../../components/RosterLive";
 import SearchBox from "../../../components/SearchBox";
+import { LoginModal } from "../../../components/SessionGate";
 import ThemeToggle from "../../../components/ThemeToggle";
+import { useSessionUser } from "../../../lib/use-session-user";
 import {
   formatCountdown,
   ringOffset,
@@ -108,6 +111,13 @@ function TypingLine() {
 
 function RoomShell({ id }: { id: string }) {
   const roomId = `war-${id}`;
+  // T8 session binding: identity comes only from GET /api/me. Display uses
+  // the session name; every actor field sent server-side is the session id
+  // (a mismatched body.actor is 403 actor_spoof).
+  const { user: me, checked: meChecked, refresh: refreshMe } = useSessionUser();
+  const actorId = me?.id ?? "";
+  const meName = me?.name || me?.id || null;
+  const meRole = me?.role ?? null;
   const [lastMs, setLastMs] = useState(0);
   const [metrics, setMetrics] = useState<Metrics>({ p50: 0, p95: 0, docCount: 0, sampleSize: 0 });
   const [latHist, setLatHist] = useState<number[]>([]);
@@ -121,6 +131,7 @@ function RoomShell({ id }: { id: string }) {
   const [welcomeVisible, setWelcomeVisible] = useState(true);
   const [hoState, setHoState] = useState<HoState>("live");
   const [acked, setAcked] = useState(false);
+  const [hoOwner, setHoOwner] = useState<string | null>(null);
   const [approval, setApproval] = useState<CoSignLive>({
     id: null,
     signatures: "0/2",
@@ -184,11 +195,13 @@ function RoomShell({ id }: { id: string }) {
         state: HoState;
         checkpoint: string | null;
         initiatedAt: number | null;
-        ackedBy: string | null;
+        initiatedBy?: string | null;
+        ackedBy?: string | null;
       };
       setHoState(body.state);
       if (body.checkpoint) setLastCk(body.checkpoint);
       if (typeof body.initiatedAt === "number") setHoInitiatedAt(body.initiatedAt);
+      setHoOwner(body.ackedBy ?? body.initiatedBy ?? null);
       setAcked(body.state === "acked");
     } catch {
       // best-effort ops data.
@@ -492,7 +505,7 @@ function RoomShell({ id }: { id: string }) {
       const hoRes = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "initiate", roomId, actor: "arun.m" }),
+        body: JSON.stringify({ action: "initiate", roomId, actor: actorId }),
       });
       const hoBody = (await hoRes.json().catch(() => null)) as {
         checkpoint?: string;
@@ -515,7 +528,7 @@ function RoomShell({ id }: { id: string }) {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "initiate", roomId, actor: "arun.m" }),
+        body: JSON.stringify({ action: "initiate", roomId, actor: actorId }),
       });
       const body = (await res.json().catch(() => null)) as {
         checkpoint?: string;
@@ -546,7 +559,7 @@ function RoomShell({ id }: { id: string }) {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "ack", roomId, actor: "p.krishnan" }),
+        body: JSON.stringify({ action: "ack", roomId, actor: actorId }),
       });
       const body = (await res.json().catch(() => null)) as {
         checkpoint?: string;
@@ -573,7 +586,7 @@ function RoomShell({ id }: { id: string }) {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, roomId, actor: "arun.m" }),
+        body: JSON.stringify({ action, roomId, actor: actorId }),
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
@@ -609,7 +622,7 @@ function RoomShell({ id }: { id: string }) {
       const res = await fetch("/api/handoff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "ack", roomId, actor: "p.krishnan" }),
+        body: JSON.stringify({ action: "ack", roomId, actor: actorId }),
       });
       const body = (await res.json().catch(() => null)) as {
         checkpoint?: string;
@@ -890,7 +903,7 @@ function RoomShell({ id }: { id: string }) {
                   <div className="inc-rows">
                     <div className="r">
                       <span>Owner</span>
-                      <span>{acked ? "p.krishnan" : "arun.m"}</span>
+                      <span data-handoff="owner">{hoOwner ?? meName ?? "—"}</span>
                     </div>
                     <div className="r">
                       <span>Deploy freeze</span>
@@ -912,26 +925,7 @@ function RoomShell({ id }: { id: string }) {
               <div>
                 <div className="sb-t">IN THE ROOM</div>
                 <div className="card" style={{ padding: "7px 12px" }}>
-                  <div className="person">
-                    <span className="av">
-                      AR<span className="st" />
-                    </span>
-                    <div>
-                      <div className="pn">arun.m</div>
-                      <div className="pr">Primary on-call · you</div>
-                    </div>
-                    <span className="ps">OWNER</span>
-                  </div>
-                  <div className="person">
-                    <span className="av">
-                      PK<span className="st" />
-                    </span>
-                    <div>
-                      <div className="pn">priya.k</div>
-                      <div className="pr">Comms lane</div>
-                    </div>
-                    <span className="ps">ONLINE</span>
-                  </div>
+                  <RosterLive meName={meName} meRole={meRole} />
                   <div className="person">
                     <span className="av bot">
                       B1<span className="st" />
@@ -1071,7 +1065,9 @@ function RoomShell({ id }: { id: string }) {
               <span id="hoTime">{hoTimeLabel}</span>
             </span>
             <div>
-              <div className="hob-t">Baton is out — waiting for p.krishnan</div>
+              <div className="hob-t">
+                Baton is out — waiting for <span data-handoff="owner">{hoOwner ?? meName ?? "successor"}</span>
+              </div>
               <div className="hob-s">
                 Close is blocked (409) until the successor accepts ownership. Window: 10 min,
                 fail-closed.
@@ -1253,8 +1249,12 @@ function RoomShell({ id }: { id: string }) {
                     </svg>
                   </span>
                   <div>
-                    <div className="sn">arun.m</div>
-                    <div className="sr">Primary on-call · you</div>
+                    <div className="sn" data-sign="me">
+                      {meName ?? "—"}
+                    </div>
+                    <div className="sr" data-sign="me-role">
+                      {meRole ? `${meRole} · you` : "—"}
+                    </div>
                   </div>
                   <span className="ss" data-signer="arun.m">{signerLabel("me")}</span>
                 </div>
@@ -1265,13 +1265,23 @@ function RoomShell({ id }: { id: string }) {
                     </svg>
                   </span>
                   <div>
-                    <div className="sn">priya.k</div>
-                    <div className="sr">Comms lead</div>
+                    <div className="sn" data-sign="peer">
+                      <PeerName />
+                    </div>
+                    <div className="sr" data-sign="peer-role">
+                      <PeerRole />
+                    </div>
                   </div>
                   <span className="ss" data-signer="priya.k">{signerLabel("peer")}</span>
                 </div>
               </div>
-              <CoSignTile roomId={roomId} action="rollback" onApproval={onApproval} />
+              <CoSignTile
+                roomId={roomId}
+                action="rollback"
+                onApproval={onApproval}
+                me={meName ?? "—"}
+                peer="teammate"
+              />
               <div className="recon">
                 <button
                   className="btn blk"
@@ -1327,7 +1337,7 @@ function RoomShell({ id }: { id: string }) {
               <div className="ho-rows">
                 <div className="r">
                   <span>Owner</span>
-                  <span>{acked ? "p.krishnan" : "arun.m"}</span>
+                  <span data-handoff="owner">{hoOwner ?? meName ?? "—"}</span>
                 </div>
                 <div className="r">
                   <span>State</span>
@@ -1346,6 +1356,7 @@ function RoomShell({ id }: { id: string }) {
                 ) : (
                   <AckModal
                     roomId={roomId}
+                    actor={actorId || undefined}
                     label="Take over (ACK)"
                     onAck={(res) => {
                       setAcked(true);
@@ -1465,7 +1476,7 @@ function RoomShell({ id }: { id: string }) {
               Close war-room
             </h3>
             <p className="ms">
-              You&apos;re closing <b>INC-2041</b> as <b>arun.m</b>. This seals the logbook, writes
+              You&apos;re closing <b>INC-2041</b> as <b>{meName ?? "—"}</b>. This seals the logbook, writes
               the close event to the audit trail, and freezes the session read-only.{" "}
               {acked
                 ? "Ownership ACK is on record, so the gate is open."
@@ -1665,6 +1676,9 @@ function RoomShell({ id }: { id: string }) {
         </div>
       )}
       <div id="drawerScrim" onClick={() => setDrawer(false)} role="presentation" />
+      {meChecked && !me && (
+        <LoginModal user={me} onLogin={() => void refreshMe()} />
+      )}
     </div>
   );
 }
@@ -1679,8 +1693,22 @@ export default function Room({ id }: { id: string }) {
   // ClientSideSuspense + an error boundary (auth stub is 501 until W1
   // provisions the secret, so presence degrades to static avatars).
   // Docs: https://liveblocks.io/docs/api-reference/liveblocks-react
+  // T8: authEndpoint is a callback posting {room, username} from the server
+  // session — the token userId is always the session user id.
+  const { user } = useSessionUser();
+  const username = user?.name || user?.id || undefined;
   return (
-    <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+    <LiveblocksProvider
+      authEndpoint={async (room) => {
+        const res = await fetch("/api/liveblocks-auth", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ room, username }),
+        });
+        if (!res.ok) throw new Error(`liveblocks auth failed (${res.status})`);
+        return await res.json();
+      }}
+    >
       <RoomProvider id={`war-${id}`} initialPresence={{ typing: false }}>
         <RoomShell id={id} />
       </RoomProvider>

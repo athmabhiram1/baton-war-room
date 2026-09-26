@@ -7,7 +7,7 @@ import { useState } from "react";
 // and the modal surfaces that honestly instead of pretending).
 export default function AckModal({
   roomId,
-  actor = "p.krishnan",
+  actor = "",
   onAck,
   label = "Take ownership (ACK)",
 }: {
