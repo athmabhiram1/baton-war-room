@@ -26,6 +26,7 @@ import {
   shortHash,
 } from "../../../lib/action-payload";
 import { runProbe as runProbeSamples } from "../../../lib/probe";
+import { meRingOn, peerRingOn } from "../../../lib/approval-display";
 
 type Toast = { key: number; kind: "ok" | "wa" | "bad" | "info"; title: string; body?: string };
 type Metrics = { p50: number; p95: number; docCount: number; sampleSize: number };
@@ -773,8 +774,19 @@ function RoomShell({ id }: { id: string }) {
     if (approval.id === null) return "IDLE";
     if (approval.status === "expired") return "EXPIRED";
     if (which === "me") return "SIGNED";
+    if (approval.status === "executed" || approval.status === "ratified") return "SIGNED";
     return approval.signatures === "2/2" ? "SIGNED" : "WAITING";
   }
+
+  const rollbackLabel =
+    approval.id === null
+      ? "STAGED · awaiting proposal"
+      : approval.status === "executed"
+        ? `EXECUTED · ${approval.signatures}`
+        : approval.status === "expired"
+          ? `EXPIRED · ${approval.signatures}`
+          : `STAGED · ${approval.signatures}`;
+  const rollbackCls = approval.status === "executed" ? "tag-ok" : "tag-wa";
 
   const reconLabel =
     recon.lastRunAt === null
@@ -934,8 +946,8 @@ function RoomShell({ id }: { id: string }) {
                     </div>
                     <div className="r">
                       <span>Rollback</span>
-                      <span className="tag-wa">
-                        {approval.id ? `STAGED · ${approval.signatures}` : "STAGED · awaiting proposal"}
+                      <span className={rollbackCls}>
+                        {rollbackLabel}
                       </span>
                     </div>
                     <div className="r">
@@ -1097,9 +1109,6 @@ function RoomShell({ id }: { id: string }) {
               </div>
             </div>
             <div className="hob-actions">
-              <button className="btn" onClick={() => void closeRoom()} type="button">
-                Cancel
-              </button>
               <button
                 className="btn primary"
                 onClick={() => void ackTakeover()}
@@ -1265,7 +1274,7 @@ function RoomShell({ id }: { id: string }) {
                 </button>
               </div>
               <div className="signers">
-                <div className="signer">
+                <div className={meRingOn(approval) ? "signer on" : "signer"}>
                   <span className="ring">
                     <svg className="ic" viewBox="0 0 24 24">
                       <path d="M4 12.5l5 5L20 6.5" />
@@ -1281,7 +1290,7 @@ function RoomShell({ id }: { id: string }) {
                   </div>
                   <span className="ss" data-signer="arun.m">{signerLabel("me")}</span>
                 </div>
-                <div className="signer">
+                <div className={peerRingOn(approval) ? "signer on" : "signer"}>
                   <span className="ring">
                     <svg className="ic" viewBox="0 0 24 24">
                       <path d="M4 12.5l5 5L20 6.5" />
