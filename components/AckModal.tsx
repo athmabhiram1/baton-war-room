@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 // Explicit ownership ACK: no room closes with PENDING_HANDOFF and no ACK.
-// POSTs to the live /api/handoff route and surfaces non-OK responses
-// honestly instead of pretending.
+// POSTs to /api/handoff (gates land in T5; until then the route answers 501
+// and the modal surfaces that honestly instead of pretending).
 export default function AckModal({
   roomId,
   actor = "",

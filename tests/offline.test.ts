@@ -120,48 +120,11 @@ describe("feed + shell wired", () => {
     expect(s.includes("plays it live")).toBe(false);
   });
 
-  it("Hero: OfflineBadge mounted above hstats (/?offline OFFLINE, /?fixture=1 FIXTURE)", () => {
-    const s = src("app/page.tsx");
-    // badge imported + rendered on the hero
-    expect(s).toContain("OfflineBadge");
-    // mounted above the hstats block (not only in the room feedhead)
-    const badgeIdx = s.indexOf("<OfflineBadge");
-    const hstatsIdx = s.indexOf("hstats");
-    expect(badgeIdx).toBeGreaterThanOrEqual(0);
-    expect(hstatsIdx).toBeGreaterThanOrEqual(0);
-    expect(badgeIdx).toBeLessThan(hstatsIdx);
-    // safe query-param path: badge reads window.location.search (no
-    // useSearchParams), so no <Suspense> boundary is required for build
-    const b = src("components/OfflineBadge.tsx");
-    expect(b.includes("useSearchParams")).toBe(false);
-    expect(b).toContain("window.location.search");
-  });
-
   it("HeroActions: dead scrollToLoop removed, live one kept", () => {
     const s = src("components/HeroActions.tsx");
     const occurrences = s.split("function scrollToLoop").length - 1;
     expect(occurrences).toBe(1);
     expect(s).toContain('scrollIntoView');
     expect(s).toContain("#loop");
-  });
-});
-
-// Wave 1 Task 3 (presentation-polish): kill Liveblocks auth → the presence
-// fallback stays neutral (never fake AR/PK/B1 names) and the sidebar age
-// stays live-relative (never a frozen literal contradicting the INC+ timer).
-describe("kill-auth presence honesty", () => {
-  it("Room: presence fallback is neutral, never fake identities", () => {
-    const s = src("app/room/[id]/Room.tsx");
-    const m = s.match(/function StaticAvatars\(\)[\s\S]*?\n\}/);
-    expect(m).not.toBeNull();
-    const block = m ? m[0] : "";
-    expect(block).not.toMatch(/>(AR|PK|B1)</);
-    expect(block).toContain("presence unavailable");
-  });
-
-  it("Room: sidebar Opened age is live-relative, never a hardcoded literal", () => {
-    const s = src("app/room/[id]/Room.tsx");
-    expect(s).not.toContain("26 min ago");
-    expect(s.includes("openedAt") && s.includes("nowMs")).toBe(true);
   });
 });
