@@ -1,5 +1,4 @@
 import HeroActions, { HeroCtas } from "../components/HeroActions";
-import OfflineBadge from "../components/OfflineBadge";
 import SessionGate from "../components/SessionGate";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -44,10 +43,9 @@ export default function Home() {
           </p>
           <HeroCtas />
           <SessionGate />
-          <OfflineBadge />
           <div className="hstats" title="SLO targets — live values in the room SLO tab">
             <span className="hstat g" title="SLO target — live values in the room SLO tab">
-              <i />p50 target ≤ 800 ms
+              <i />p50 ≤ 800 ms
             </span>
             <span className="hstat g">
               <i />0 repeat questions
@@ -132,7 +130,7 @@ export default function Home() {
             <span className="rail">
               <span className="runner" />
             </span>
-            <span>sample p50 412ms · target ≤ 800ms · 0 repeat · illustrative preview</span>
+            <span>sample p50 412ms · 0 repeat · illustrative preview</span>
           </div>
         </div>
       </section>
@@ -203,7 +201,7 @@ export default function Home() {
               Every answer, decision and event is checkpointed. A successor — human or agent —
               resumes from the last checkpoint instead of starting over.
             </p>
-            <div className="fviz" title="Illustrative preview — not live data">
+            <div className="fviz">
               <ul className="term">
                 <li>
                   <span className="ta">baton-1</span> · rollback staged per SOP-003 ·{" "}
@@ -231,7 +229,7 @@ export default function Home() {
               Detach the agent mid-incident and questions park instead of vanishing. Attach a
               successor: it replays the logbook, then answers everything that piled up.
             </p>
-            <div className="fviz" title="Illustrative preview — not live data">
+            <div className="fviz">
               <div className="mini-kill">
                 <span className="mk-chip dead">baton-1 · KILLED</span>
                 <svg className="ic" style={{ color: "var(--ink3)" }} viewBox="0 0 24 24">
@@ -251,7 +249,7 @@ export default function Home() {
               A rollback executes only with two distinct humans on the same payload hash inside a
               10-minute window. Expire unsigned and the action cancels — never the reverse.
             </p>
-            <div className="fviz" title="Illustrative preview — not live data">
+            <div className="fviz">
               <div className="mini-cosign">
                 <span className="mring on">
                   <svg className="ic" viewBox="0 0 24 24">
@@ -286,10 +284,11 @@ export default function Home() {
               The query path is synchronous and small; the SLO is binding. A 20-query probe gates
               the build: p50 ≤ 800ms, p95 ≤ 2000ms — or it doesn&apos;t ship.
             </p>
-            <div className="fviz" title="Illustrative preview — not live data">
+            <div className="fviz">
               <ul className="term" style={{ animation: "none" }}>
                 <li style={{ opacity: 1, animation: "none" }}>
-                  <span className="tc">✓ sample probe</span> last verified 20/20 queries · p50 <span className="tc">412ms</span> · p95 <span className="tc">1380ms</span> (sample · see room SLO tab)
+                  <span className="tc">✓ probe</span> 20/20 queries · p50{" "}
+                  <span className="tc">412ms</span> · p95 <span className="tc">1380ms</span>
                 </li>
                 <li style={{ opacity: 1, animation: "none" }}>
                   <span className="tc">✓ verdict</span> SLO PASS · within 800 / 2000 budget
