@@ -1,90 +1,105 @@
-# Demo runbook — two people, two browsers (technical cut, 2:00 + setup)
+# Baton — presentation script (judges cut, ~4 min + Q&A)
 
-Every claim below is verified: vitest 131/131, `scripts/eval.mjs` 7/7,
-tripwire OK, prod smoke green. Proof: `docs/evidence/`.
-Story cut: `docs/demo-script-2min.md`.
+Rubric: 35% Product & UX · 30% Technical · 20% Speed & Latency · 15% Demo.
+Track 2: Multiplayer AI & Collaborative Agents. Every claim verified:
+vitest 154/154, `scripts/eval.mjs` 7/7, tripwire OK, prod smoke green.
+Proof: `docs/evidence/`.
 
-## Cast & windows (label them, never swap roles mid-shoot)
+## Cast (never swap roles mid-shoot)
 
-- **Browser A — Arun (you, normal window).** Proposes, initiates, kills, closes.
-- **Browser B — Priya (second person, separate window or incognito).**
-  Ratifies, ACKs, resumes. Uses a DIFFERENT email (Google SSO shares
-  identity per profile, so email login for both — or one Google + one email).
+- **Browser A — Arun (you).** Proposes, initiates, kills, closes.
+- **Browser B — Priya (second person, incognito).** Ratifies, ACKs, resumes.
+  DIFFERENT emails — shared identity kills the two-human proof on camera.
 
-## Setup (5 min before rolling)
+## Setup (5 min before)
 
-- Both windows 1080p, hide bookmarks, quit extra apps.
-- Window A: `https://baton-war-room.vercel.app/` (landing).
-- Window B: same landing URL, separate window/profile.
-- Backup: `…/room/war-demo?fixture=1` (canned docs, zero spend, can't fail).
-- Local fallback if prod hiccups: `http://localhost:3112` (dev server running).
+1080p both windows, bookmarks hidden, extra apps quit. A + B on
+`https://baton-war-room.vercel.app/`. Backup: `…/room/war-demo?fixture=1`.
+Local fallback: `http://localhost:3112`. Never show: console, `.env`,
+dashboards, keys, cookie values.
 
-## Login, on camera (30s — this IS the demo's trust beat)
+## 0:00 Problem — sell the pain, in dollars (30s)
 
-1. Window A: click Enter the war-room → login modal → name `Arun`,
-   role Primary on-call, email `arun@demo…`, password → Continue →
-   lands in `/room/war-demo` as OWNER.
-2. Window B: same steps → name `Priya`, role Secondary, DIFFERENT email
-   → lands in the SAME room code.
-3. Show both rosters side by side: A lists Arun (you) + Priya (online),
-   B lists Priya (you) + Arun (online). Typing in one shows in the other.
-   Say: "Two humans, one room, no shared password — each tab is its own
-   session cookie."
+"Every SEV1 ends the same way. The outgoing engineer leaves, the newcomer
+asks the same three questions, and the agent starts from zero. The median
+enterprise outage costs $9,000 a minute, and 91% of enterprises report
+outages over $300K. Every repeated question burns at that rate. Baton is
+the missing protocol: two humans and one agent sharing one checkpointed
+memory — nobody re-asks, nobody closes without an ACK."
 
-## Beat sheet (who does what, per beat)
+## 0:30 Demo — two windows, one room (2:00)
 
-### 0:20 Catch-up — A asks, both watch (30s)
-A: SearchBox → `what happened so far?` → Enter.
-Show on A: 5 citation chips (`SOP-xxx` + score), `timeTakenInMs`,
-LatencyHud p50/p95. Click one chip → inline source (id/score/text).
-B watches the same answer arrive live (shared feed, not screen-share).
-Say: "Priya joined mid-fire and asked the room, not Arun."
-Tech: `POST /api/query` → Moss `war-room-seed` session, topK 5, in-process ms.
+**Login on camera (trust beat).** A: Enter → `Arun`, Primary on-call →
+lands OWNER. B: same → `Priya`, Secondary, different email → SAME room
+code. Show both rosters: A lists Arun (you) + Priya (online), B mirrored.
+"Two humans, one room, no shared password — each tab is its own session."
 
-### 0:50 Redirect — B steers, A watches (20s)
-B: type `actually check replica lag first` → Enter; A shows B's typing +
-avatar live, then the re-queried answer.
-Say: "Watch the human steer — presence is live both ways."
-Tech: Liveblocks presence (`useOthers`/`useSelf`), feed re-query.
+**Catch-up.** A asks `what happened so far?` → 5 citation chips + ms +
+p50/p95 on both windows. Click a chip → inline source. "Priya joined
+mid-fire and asked the room, not Arun."
 
-### 1:10 Kill / resume — A kills, B resumes (25s)
-A: Simulate agent kill. B: ACK in AckModal → feed replays checkpoint +
-logbook count, 0 repeats.
-Say: "Arun's laptop dies with the agent. The successor wakes with the
-checkpoint, not an interrogation."
-Tech: `POST /api/handoff` initiate → PENDING, ack → resume payload.
+**Redirect.** B types `actually check replica lag first` → A shows B's
+typing + avatar live, answer re-queries. "Presence works both ways."
 
-### 1:35 Co-sign — A proposes, B ratifies (25s) ⚠️ shoot AFTER the shared-approval fix lands
-A (Approval tab): Propose failover → BOTH windows show the SAME approval
-(A SIGNED / B WAITING), `1/2 blocked`.
-B: Ratify the same hash → BOTH flip to `2/2` → Execute 200.
-Say: "One human is never enough — two distinct humans, one payload hash,
-or nothing moves."
-Tech: SHA-256 payloadHash, 10-min window, fail-closed (same-human /
-wrong-hash / expired = 403 + `actor_spoof` audit).
+**Kill / resume.** A kills the agent. B ACKs → checkpoint replays,
+0 repeats. "Arun's laptop dies with the agent. The successor wakes with
+the checkpoint, not an interrogation."
 
-### 1:50 Metrics + close — A closes, B releases (15s)
-A: Close → **409**. B: ACK. A: Close → **200**. Point at metrics tiles.
-Flash `?fixture=1` FIXTURE badge once.
-Say: "No ACK, no close. Baton: hand over the incident, not the guesswork."
-Tech: `GET /api/metrics` p50/p95, `docs/evidence/eval-report.json` 7/7.
+**Co-sign.** A proposes failover → both show `1/2 blocked`. B ratifies
+same hash → `2/2` → Execute 200 both sides. "One human is never enough —
+two distinct humans, one payload hash, or nothing moves."
 
-## Per-beat fallbacks
+**Close.** A closes → **409**. B ACKs. A closes → **200**. Flash metrics
+tiles + `?fixture=1` badge once. "No ACK, no close. Hand over the
+incident, not the guesswork."
 
-- Retrieval slow → `?fixture=1` (canned, zero calls).
-- LLM down → `DISABLE_LLM=1` extractive answers (verified path).
-- Any UI stall → curl backup: `POST /api/query {"q":"SEV1 triage"}` → 200
-  + citations; `POST /api/handoff` 409→ACK→200 (see `scripts/eval.mjs`).
+## 2:30 Architecture — one diagram (45s)
 
-## Don't show
+Moss session-per-room (shared context + history + semantic retrieval) →
+Liveblocks (presence/feeds) → Postgres outbox (durable approvals) →
+Gemini (generation only, extractive fallback). "That's the track brief
+verbatim: fast shared context, session history, semantic retrieval,
+multi-agent state. Retrieval is a function call, not a service query —
+index loads once, queries run in-memory at ~10ms p50."
 
-Devtools console, `.env`, Vercel/Neon dashboards, any key or cookie value.
-Never log both windows into the same email — shared identity kills the
-two-human proof on camera.
+## 3:15 Honest close (30s)
 
-## After the shoot
+"Limits, stated plainly: one scoped index per room by design; fixture mode
+covers retrieval outages at zero spend; co-sign plus an immutable timeline
+is what lets Security say yes to agents touching production. Solo-built,
+boring managed stack, tripwire-capped costs."
 
-1. Upload video, attach URL.
-2. HiDevs submit: repo + `https://baton-war-room.vercel.app` + video.
-3. Rotate all keys (Neon, Moss, Liveblocks, Google) — `.env` values have
-   appeared in agent logs during the build; treat as exposed.
+## Q&A — the seven you'll get
+
+1. **Why not pgvector/Pinecone?** Round-trip tax, 100–500ms per lookup —
+   seconds of dead time per turn. Same hybrid power (semantic + BM25),
+   no infra.
+2. **Different from ChatGPT / a shared doc?** Neither enforces handoff:
+   ACK gate (409), 2-of-2 co-sign, checkpointed logbook. A doc doesn't
+   transfer ownership.
+3. **What breaks at scale?** Collab-minute caps + Neon wake (~100ms,
+   pinger covers it); one index per room under 500MB; tripwire fails
+   the build over caps.
+4. **Latency real?** `/api/metrics` live: p50 ~10ms on 20 SOPs. Grows
+   with index size — hence scoped indexes.
+5. **Business model?** Per-responder seats, viewers free, no AI tax —
+   incident.io proved the shape ($45 all-in vs PagerDuty $41 + AI
+   add-ons). Land one war-room, expand at the 90-day MTTR review.
+6. **Opsgenie is dying — so what?** Shutdown April 2027; every migrating
+   team re-evaluates. That's the wedge.
+7. **Did AI build this?** Evidence folder: RED→GREEN logs, eval reports,
+   commit history. Process proof, not claims.
+
+Close Q&A with: "Happy to go deeper on the per-incident economics or
+the Moss session model." Feed the judge your home turf.
+
+## Fallbacks (any stall → no dead air)
+
+Retrieval slow → `?fixture=1`. LLM down → `DISABLE_LLM=1` extractive.
+UI stall → curl `POST /api/query {"q":"SEV1 triage"}` → 200 + citations;
+`POST /api/handoff` 409→ACK→200.
+
+## After
+
+Upload video + URL → HiDevs submit (repo + live URL + video) → rotate
+all keys (Neon, Moss, Liveblocks, Google).
