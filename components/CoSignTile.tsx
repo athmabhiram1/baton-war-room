@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { actionPayloadHashBrowser, canonicalActionPayload } from "../lib/action-payload";
+import {
+  executedFallbackNote,
+  isExecuted,
+  signActionVisible,
+  terminalNote,
+} from "../lib/approval-display";
 
 export type CoSignLive = {
   id: string | null;
@@ -53,6 +59,10 @@ export default function CoSignTile({
   const [windowEndsAt, setWindowEndsAt] = useState<number | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // True once THIS tab contributed its signature (proposed new or ratified):
+  // the sign control then renders a neutral disabled "Signed" state instead
+  // of an actionable button. Adopting another tab's open row leaves it false.
+  const [mine, setMine] = useState(false);
   const liveRef = useRef<CoSignLive>({ id: null, signatures: "0/2", status: "idle", windowEndsAt: null, payloadHash: payloadHash ?? "" });
   liveRef.current = {
     id,
@@ -137,6 +147,7 @@ export default function CoSignTile({
         const open = await fetchOpen();
         if (open) {
           adopt(open);
+          setMine(false);
           setNote({ ok: true, text: `joined open approval: ${open.signatures}` });
           return;
         }
@@ -152,6 +163,7 @@ export default function CoSignTile({
         signatures?: string;
         windowEndsAt?: number;
         error?: string;
+        joined?: boolean;
       } | null;
       if (!res.ok) {
         // Stale/missing id (e.g. swept or executed elsewhere): re-sync to the
@@ -160,6 +172,7 @@ export default function CoSignTile({
           const open = await fetchOpen();
           if (open) {
             adopt(open);
+            setMine(false);
             setNote(null);
             return;
           }
@@ -167,18 +180,59 @@ export default function CoSignTile({
           setSigs("0/2");
           setStatus("idle");
           setWindowEndsAt(null);
+          setMine(false);
           setNote(null);
           liveRef.current = { id: null, signatures: "0/2", status: "idle", windowEndsAt: null, payloadHash: hash };
           report();
           return;
         }
-        setNote({ ok: false, text: body?.error ?? `${step} failed (${res.status})` });
+        const errText = body?.error ?? `${step} failed (${res.status})`;
+        if (/is\s+executed/i.test(errText)) {
+          let view = { id, signatures: sigs, status };
+          try {
+            const stRes = await fetch("/api/approvals", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ roomId, step: "status", approvalId: id }),
+            });
+            if (stRes.ok) {
+              const st = (await stRes.json()) as {
+                status?: string;
+                signatures?: string;
+                windowEndsAt?: number;
+              };
+              if (st.signatures) setSigs(st.signatures);
+              if (st.status) setStatus(st.status);
+              if (typeof st.windowEndsAt === "number") setWindowEndsAt(st.windowEndsAt);
+              view = {
+                id,
+                signatures: st.signatures ?? sigs,
+                status: st.status ?? status,
+              };
+              liveRef.current = {
+                ...liveRef.current,
+                signatures: view.signatures,
+                status: view.status,
+                windowEndsAt:
+                  typeof st.windowEndsAt === "number" ? st.windowEndsAt : liveRef.current.windowEndsAt,
+              };
+              report();
+            }
+          } catch {
+            // Best-effort resync; the note still uses success styling.
+          }
+          setNote(terminalNote(errText, view));
+          return;
+        }
+        setNote({ ok: false, text: errText });
         return;
       }
       if (body?.id) setId(body.id);
       if (body?.signatures) setSigs(body.signatures);
       if (body?.status) setStatus(body.status);
       if (typeof body?.windowEndsAt === "number") setWindowEndsAt(body.windowEndsAt);
+      if (step === "propose") setMine(!body?.joined);
+      if (step === "ratify") setMine(true);
       setNote({ ok: true, text: `${step}: ${body?.signatures ?? body?.status ?? "ok"}` });
       liveRef.current = {
         id: body?.id ?? id,
@@ -229,6 +283,7 @@ export default function CoSignTile({
             setSigs("0/2");
             setStatus("idle");
             setWindowEndsAt(null);
+            setMine(false);
             setNote(null);
             liveRef.current = { id: null, signatures: "0/2", status: "idle", windowEndsAt: null, payloadHash: hash };
             report();
@@ -237,7 +292,10 @@ export default function CoSignTile({
           if (!res.ok) return;
           const body = (await res.json()) as { status?: string; signatures?: string; windowEndsAt?: number };
           if (body.signatures) setSigs(body.signatures);
-          if (body.status) setStatus(body.status);
+          if (body.status) {
+            setStatus(body.status);
+            if (body.status === "executed" || body.status === "expired") setMine(false);
+          }
           if (typeof body.windowEndsAt === "number") setWindowEndsAt(body.windowEndsAt);
           liveRef.current = {
             ...liveRef.current,
@@ -255,6 +313,13 @@ export default function CoSignTile({
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hash, id, status, roomId, fetchOpen]);
+
+  const view = { id, signatures: sigs, status };
+  const shown: { ok: boolean; text: string } | null = isExecuted(view)
+    ? note !== null && /execut/i.test(note.text)
+      ? note
+      : executedFallbackNote(view)
+    : note;
 
   return (
     <div
@@ -282,16 +347,22 @@ export default function CoSignTile({
           >
             {!hash ? "Deriving payload hash…" : busy ? "Proposing…" : `Propose ${action} as ${me}`}
           </button>
-        ) : (
+        ) : signActionVisible(view) ? (
           <>
-            <button
-              className="btn primary blk"
-              disabled={busy || sigs === "2/2"}
-              onClick={() => void call("ratify")}
-              type="button"
-            >
-              {busy ? "Signing…" : `Sign as ${me}`}
-            </button>
+            {mine && sigs !== "2/2" ? (
+              <button className="btn primary blk" disabled type="button">
+                Signed — waiting for co-sign (1/2)
+              </button>
+            ) : (
+              <button
+                className="btn primary blk"
+                disabled={busy || sigs === "2/2"}
+                onClick={() => void call("ratify")}
+                type="button"
+              >
+                {busy ? "Signing…" : `Sign as ${me}`}
+              </button>
+            )}
             <button
               className="btn blk"
               disabled={busy || sigs !== "2/2"}
@@ -302,10 +373,10 @@ export default function CoSignTile({
               Execute ({sigs})
             </button>
           </>
-        )}
+        ) : null}
       </div>
-      <div id="apDone" className={note ? `show ${note.ok ? "good" : "fail"}` : ""}>
-        <span>{note?.text}</span>
+      <div id="apDone" className={shown ? `show ${shown.ok ? "good" : "fail"}` : ""}>
+        <span>{shown?.text}</span>
       </div>
     </div>
   );
