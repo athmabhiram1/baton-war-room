@@ -1,12 +1,12 @@
 {
-  "base": "http://localhost:3112",
-  "at": "2026-09-27T07:12:03.269Z",
-  "pass": true,
+  "base": "https://baton-war-room.vercel.app",
+  "at": "2026-09-27T07:12:25.247Z",
+  "pass": false,
   "results": [
     {
       "name": "S1 query 200 + ≥2 citations + ms",
       "pass": true,
-      "detail": "citations=5 ms=1"
+      "detail": "citations=5 ms=0"
     },
     {
       "name": "S2 fixture answers with zero live calls",
@@ -25,8 +25,8 @@
     },
     {
       "name": "S3 handoff 409 → ACK → 200 (authenticated)",
-      "pass": true,
-      "detail": "409→ACK→200 ok"
+      "pass": false,
+      "detail": "close-before-ack 200"
     },
     {
       "name": "S3 cross-room ratify DENY + isolation_violation (authenticated)",
@@ -36,7 +36,7 @@
     {
       "name": "S3 metrics p50/p95 present",
       "pass": true,
-      "detail": "p50=1 p95=1"
+      "detail": "p50=0 p95=0"
     }
   ]
 }

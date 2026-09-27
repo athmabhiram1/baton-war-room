@@ -1,0 +1,1 @@
+{"state":"acked","checkpoint":"ck_44101f2d","ackedBy":"Curl Priya","resume":{"checkpoint":"ck_44101f2d","pushIndex":{"jobId":"noop","indexName":"war-room-seed","docCount":20,"status":"completed"},"logbook":[{"id":"escalation-matrix","score":1},{"id":"handoff-template","score":1},{"id":"postmortem","score":1},{"id":"sev2-triage","score":1},{"id":"comms-template","score":0.8786}]}}
