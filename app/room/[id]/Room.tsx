@@ -56,19 +56,23 @@ function TypingLineInner() {
   );
 }
 
-// Template-static avatar stack: shown while Liveblocks connects or when the
-// auth stub (W1, 501) refuses the room. Keeps the header pixel-close offline.
+function formatOpenedAge(ageMs: number): string {
+  const m = Math.max(0, Math.floor(ageMs / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  return `${Math.floor(m / 60)}h ${m % 60}m ago`;
+}
+
+// Neutral avatar stack: shown while Liveblocks connects or when the auth
+// endpoint refuses the room. Never invents identities — initials stay "—"/"?".
 function StaticAvatars() {
   return (
-    <div className="avatars" aria-label="Presence (offline)">
-      <span className="av">
-        AR<span className="st" />
+    <div className="avatars" aria-label="Presence (unavailable)">
+      <span className="av" title="presence unavailable">
+        —<span className="st" />
       </span>
-      <span className="av">
-        PK<span className="st" />
-      </span>
-      <span className="av bot">
-        B1<span className="st" />
+      <span className="av" title="presence unavailable">
+        ?<span className="st" />
       </span>
     </div>
   );
@@ -599,7 +603,7 @@ function RoomShell({ id }: { id: string }) {
       pushToast(
         "ok",
         "Successor attached",
-        `Checkpoint ${body?.checkpoint ?? "head"} replayed · ${replayed} logbook events · 0 repeat questions.`,
+        `Checkpoint ${body?.checkpoint ?? "head"} replayed · ${replayed} logbook events.`,
       );
     } catch (e) {
       pushToast("bad", "Attach failed", e instanceof Error ? e.message : String(e));
@@ -952,7 +956,7 @@ function RoomShell({ id }: { id: string }) {
                     </div>
                     <div className="r">
                       <span>Opened</span>
-                      <span>26 min ago</span>
+                      <span>{formatOpenedAge(nowMs - openedAt.current)}</span>
                     </div>
                   </div>
                 </div>
@@ -1148,7 +1152,7 @@ function RoomShell({ id }: { id: string }) {
                 )}
                 <div className="sysline k-ok">
                   <b>ATTACH</b>
-                  <span>baton-1 joined · replayed {lastCk ?? "—"} → head · 0 repeat</span>
+                  <span>baton-1 joined · replayed {lastCk ?? "—"} → head</span>
                 </div>
                 <div className="sysline k-wa">
                   <b>FREEZE</b>
@@ -1243,8 +1247,7 @@ function RoomShell({ id }: { id: string }) {
               </div>
               <p className="dim-note">
                 Kill removes the agent mid-incident. A successor resumes from the checkpointed
-                logbook — questions asked meanwhile are answered on attach, with zero repeat
-                questions.
+                logbook — questions asked meanwhile are answered from the replayed logbook on attach.
               </p>
             </div>
             <div className={`ops-pane${tab === "approval" ? " on" : ""}`} id="pane-approval">
@@ -1566,13 +1569,13 @@ function RoomShell({ id }: { id: string }) {
               </div>
               <div>
                 <div className="k">REPEAT Q</div>
-                <div className="v">0</div>
+                <div className="v">—</div>
               </div>
             </div>
             <div className="mrow2">
               <button
                 className="btn"
-                onClick={() => void copyText(`INC-2041 sealed · ${qn} queries · p50 ${metrics.p50}ms · p95 ${metrics.p95}ms · 0 repeats`, "Postmortem summary")}
+                onClick={() => void copyText(`INC-2041 sealed · ${qn} queries · p50 ${metrics.p50}ms · p95 ${metrics.p95}ms`, "Postmortem summary")}
                 type="button"
               >
                 Copy postmortem summary
@@ -1634,7 +1637,7 @@ function RoomShell({ id }: { id: string }) {
                 </div>
                 <div className="gl">
                   <b>Checkpoint</b>
-                  <span>A save point (push_index). Successors resume from the latest one with zero repeat questions.</span>
+                  <span>A save point (push_index). Successors resume from the latest one, replaying the logbook instead of re-asking.</span>
                 </div>
                 <div className="gl">
                   <b>Co-sign</b>
