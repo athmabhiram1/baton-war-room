@@ -82,3 +82,27 @@ export async function upsertMember(
   if (!row?.role) throw new Error("member upsert returned no row");
   return { role: row.role };
 }
+
+/**
+ * Direct-URL join: opening /room/<id> must behave exactly like the JoinBar
+ * ensure+push flow, otherwise liveblocks-auth 403s (non_member) and the
+ * window silently degrades to StaticAvatars while other browsers see a
+ * ghost room. Join-by-code still holds — the code in the URL is required.
+ */
+export async function ensureMembership(
+  code: string,
+  userId: string,
+  role: string,
+): Promise<{ member: { role: string }; createdRoom: boolean }> {
+  const normalized = normalizeRoomCode(code);
+  if (!normalized || !userId) throw new Error("ensureMembership requires code + userId");
+  const existing = await getRoom(normalized);
+  let createdRoom = false;
+  if (!existing) {
+    await createRoom(normalized, userId);
+    createdRoom = true;
+  }
+  const member = await getMember(normalized, userId);
+  if (member) return { member, createdRoom };
+  return { member: await upsertMember(normalized, userId, role), createdRoom };
+}
