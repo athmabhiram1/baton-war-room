@@ -1,439 +1,172 @@
-# BATON — GRAND FINALE JURY PRESENTATION
+# BATON — 4–5 MINUTE SOLO PRESENTATION SCRIPT
 
-### 6–7 minute live presentation | 2 presenters
-
-Jury: Deepak Chawla, Sanjay Jha, Rakhi Sharma, Shampesh Chakrabarty — backgrounds spanning startup/jury experience, AI/community, principal AI engineering, and sales/revenue. Cover problem clarity, technical depth, real-world usefulness, and why this becomes a product. Never lead with tech stack; lead with why Baton needs to exist.
+Solo presenter. Keep it simple enough to speak naturally while sounding technical and professional.
 
 ---
 
-## 1. Opening — Arun
+### 1. Introduction
 
-**Arun:**
+“Good morning everyone.
 
-“Good morning, everyone.
+We are presenting **Baton — a Shift Handoff War-Room for AI-assisted incident response.**
 
-Let me start with a situation that happens during almost every serious production incident.
+The problem is simple.
 
-An engineer and an AI agent are investigating a problem.
+During a production incident, an engineer and an AI agent may already have investigated the problem, collected evidence, and made decisions. But when the engineer or agent is replaced, the next person often has to start again and reconstruct what happened.
 
-They have already gathered evidence, checked runbooks, made decisions, and reached a certain point in the investigation.
+**Baton solves this by keeping the incident context in one shared room.**
 
-Then something happens.
-
-The engineer disconnects.
-
-The AI agent crashes.
-
-Or another engineer has to take over.
-
-Now the new person has the worst possible question to answer:
-
-**‘What has already happened?’**
-
-And usually, the answer is scattered across chat, logs, terminals, tickets, and conversation history.
-
-That is the problem we decided to solve.
-
-We built **Baton — a shift-handoff war-room for AI-assisted incident response.**
-
-Baton gives two humans and an AI agent one shared operational context.
-
-So when the people or agents change, **the context doesn't disappear.**”
+Two humans and an AI agent can work together, the AI can be replaced without losing context, and critical actions require human approval.”
 
 ---
 
-## 2. What makes Baton different — Arun
+### 2. Show the room
 
-“Baton is built around three guarantees.
+[Open Baton]
 
-**First: shared context.**
+“Here is our incident war-room.
 
-Two independent humans can participate in the same live incident room.
+I’m the primary engineer, and another user can join the same room from a separate session.
 
-**Second: durable handoff.**
+Both users can see the same room state and real-time activity.
 
-If an AI agent is killed or replaced, the successor continues from the stored checkpoint instead of starting the investigation again.
-
-**Third: controlled execution.**
-
-For risky actions, one human cannot simply press execute.
-
-A second human must ratify the same action.
-
-And the room cannot be closed until the handoff is acknowledged.
-
-So our philosophy is very simple:
-
-**The room is the state.**”
+So this is not just a chatbot. It is a collaborative operational workspace.”
 
 ---
 
-# 3. Live Demo — Arun + Priya
+### 3. Ask the AI
 
-### Step 1 — Two humans join
-
-**Arun:**
-
-“I'll start as the primary on-call engineer.”
-
-[Arun opens Baton.]
-
-“Priya is joining separately as the secondary.”
-
-[Priya joins from Browser B.]
-
-**Arun:**
-
-“Notice that we're not screen-sharing one session.
-
-These are two independent user sessions inside the same incident room.”
-
-[Show both rosters.]
-
-“I can see Priya online…”
-
-**Priya:**
-
-“…and I can see Arun from my own session.”
-
-**Arun:**
-
-“That matters because Baton is designed for actual handoffs between people, not a simulated collaboration experience.”
-
----
-
-# 4. AI investigation — Arun
-
-**Arun:**
-
-“Let's assume this is a SEV1 production incident.
-
-I'll ask:
+“I’ll start with a simple incident question:
 
 **‘What happened so far?’**”
 
-[Enter query.]
+[Run query]
 
-“Baton retrieves the relevant operational knowledge and generates an answer with citations.”
+“Baton retrieves relevant operational knowledge using **Moss** and gives us an answer with citations.
 
-[Point at citations.]
+These citations are important because I can inspect the actual source behind the answer.”
 
-“Here we can see the supporting SOP references, relevance scores, and response timing.”
+[Open citation]
 
-[Open citation.]
-
-“And we can inspect the underlying source directly.”
+“So during an incident, the engineer is not only seeing an AI response, but also the evidence used to support it.”
 
 ---
 
-## 5. Explain the AI architecture — Arun
+### 4. Human controls the investigation
 
-“What is happening underneath is straightforward.
-
-The incident room talks to our query API.
-
-The query API uses **Moss** for semantic retrieval against our `war-room-seed` knowledge index.
-
-Our demo knowledge base contains the operational SOPs.
-
-The retrieved context is then passed to the generation layer.
-
-This gives us something important during an incident:
-
-**an AI answer that is not detached from the operational knowledge it is using.**”
-
----
-
-# 6. Human steers the AI — Priya
-
-**Priya:**
-
-“Now I'll change the direction of the investigation.
-
-Instead of following Arun's current line of investigation, I'll say:
-
-**‘Actually, check replica lag first.’**”
-
-[Priya types.]
-
-**Priya:**
-
-“Arun sees my activity immediately.”
-
-[Show Browser A.]
-
-**Arun:**
-
-“So the AI is not operating as an isolated chatbot.
-
-The humans are continuously steering the investigation while the room maintains the shared state.”
-
----
-
-# 7. The critical moment — agent failure
-
-**Arun:**
-
-“Now let's create the failure scenario Baton was specifically designed for.
-
-I'm going to kill the active agent.”
-
-[Simulate agent kill.]
-
-“The important question is:
-
-What happens now?”
-
----
-
-### Priya takes over
-
-**Priya:**
-
-“I'll acknowledge the handoff.”
-
-[Click ACK.]
-
-“Baton now resumes from the stored checkpoint.”
-
-[Show checkpoint/replay.]
-
-**Priya:**
-
-“The successor doesn't have to repeat the investigation.
-
-It receives the state that was already established.”
-
-**Arun:**
-
-“So we aren't handing over a giant transcript and asking someone to figure it out.
-
-We're handing over **operational state**.”
-
----
-
-# 8. Explain the key technical innovation — Arun
-
-“This is where Baton is different from a normal chat-based workflow.
-
-We persist the handoff state so that the next agent can resume from a known checkpoint.
-
-The room keeps the collaborative state.
-
-The backend keeps the durable workflow state.
-
-That means the system is designed around **continuity**, not just conversation.”
-
----
-
-# 9. High-risk action — two-person approval
-
-**Arun:**
-
-“Now let's move from investigation to action.
-
-Suppose the AI recommends a risky failover.
-
-I can propose it…”
-
-[Open approval panel.]
-
-“…but I cannot execute it alone.”
-
-[Show `1/2`.]
-
-“Right now, this action has one approval.”
-
----
-
-### Priya
-
-**Priya:**
-
-“I'll independently review the action and ratify the same payload.”
-
-[Click Ratify.]
-
-“Now we have **2 of 2**.”
-
-[Execute.]
-
----
-
-### Arun
-
-“The important detail here is that both humans are approving the **same action payload**.
-
-So the system isn't simply counting clicks.
-
-It verifies that the second approval corresponds to the same action.”
-
----
-
-# 10. Explain the safety model — Arun
-
-“Under the hood, Baton uses a payload hash for that approval flow.
-
-The workflow is fail-closed.
-
-That means cases such as:
-
-wrong payload,
-
-wrong room,
-
-duplicate or invalid actor,
-
-or an expired approval window
-
-do not silently proceed.
-
-They are rejected and recorded in the audit trail.”
-
----
-
-# 11. Final handoff protection — Priya
-
-**Priya:**
-
-“Now let's test the final safety gate.
-
-The incident has not yet completed its handoff.”
-
-[Arun presses Close.]
-
-**Priya:**
-
-“Baton rejects the close.”
-
-[Show `409`.]
-
-“That is intentional.
-
-The system will not let us close an unresolved handoff.”
-
----
-
-### ACK
-
-**Priya:**
-
-“I'll acknowledge the handoff.”
-
-[ACK.]
-
-**Arun:**
-
-“And now I can close the incident.”
-
-[Close.]
-
-“Now the close succeeds.”
-
----
-
-# 12. Architecture — Arun
-
-[Show architecture slide.]
-
-“Let me summarize the architecture.
-
-The frontend is built with **Next.js**.
-
-**Liveblocks** provides real-time presence and collaboration.
-
-**Moss** provides low-latency semantic retrieval for our operational SOP knowledge.
-
-**Gemini Flash-Lite** handles generation.
-
-And **Neon Postgres** stores durable workflow data such as approvals, audit records, and handoff state.
-
-The important architectural separation is this:
-
-**Live collaboration is real-time.
-Critical workflow state is durable.**
-
-That separation is what allows an agent or engineer to disappear without losing the incident.”
-
----
-
-# 13. Why Moss matters — specifically for this hackathon
-
-**Arun:**
-
-“One thing we deliberately optimized for in this build was retrieval latency.
-
-During an incident, the retrieval layer cannot become another source of delay.
-
-Our Moss index is in-process for the query path, and the repository includes latency measurements and automated evaluation.
-
-So Moss is not just another dependency in our stack.
-
-It sits directly on the critical path of the investigation.”
-
----
-
-# 14. Product / real-world value — Priya
-
-**Priya:**
-
-“And this is not limited to one specific incident workflow.
-
-The same pattern applies anywhere an AI agent operates over time and another human or agent may need to take over.
+“Now I can change the direction of the investigation.
 
 For example:
 
-production incidents,
+**‘Actually, check replica lag first.’**”
 
-security operations,
+[Type/send]
 
-customer support escalations,
+“The AI can adapt to the new direction while the room keeps the shared context.
 
-infrastructure operations,
-
-and other human-in-the-loop agent workflows.
-
-The common problem is the same:
-
-**How do we transfer responsibility without losing state?**”
+So humans remain in control of the investigation.”
 
 ---
 
-# 15. Business/product angle — Arun
+### 5. Kill the agent
 
-“This also changes the product we are building.
+“Now let’s test the main problem Baton is designed to solve.
 
-We're not trying to replace engineers.
+I’ll simulate an agent failure.”
 
-We're building the coordination layer around AI-assisted operations.
+[Kill agent]
 
-That means the value comes from reducing duplicated investigation, preserving operational context, and putting explicit controls around high-impact actions.
+“The important question is:
 
-The AI can reason.
+**Do we start again?**
 
-The humans retain control.
+No.
 
-And the system preserves the state between them.”
+Another user can acknowledge the handoff, and Baton resumes from the stored checkpoint.”
+
+[ACK / resume]
+
+“This means the successor continues from the existing state instead of repeating the investigation.”
+
+### Say this slowly:
+
+**‘The successor continues from the checkpoint, not from zero.’**
 
 ---
 
-# 16. Final close — Arun
+### 6. Two-person approval
 
-“So the entire idea behind Baton comes down to one problem:
+“Now let's say the AI recommends a risky failover action.
 
-**AI agents are becoming part of operational workflows, but operational workflows cannot depend on one agent session staying alive forever.**
+I can propose the action, but I cannot execute it alone.”
 
-Baton makes the workflow continuous.
+[Show 1/2]
 
-Two humans can share one live room.
+“The system requires a second human to approve the same action.”
 
-An agent can fail and another can resume.
+[Switch to second session / demonstrate ratification]
 
-Risky actions require two humans.
+“After the second approval, we reach **2 of 2**, and execution is allowed.”
 
-And the incident cannot be closed until the handoff is acknowledged.
+### Say:
 
-So our core principle is:
+**‘One human proposes. Another human ratifies.’**
+
+---
+
+### 7. Close protection
+
+“Finally, Baton also protects the end of the incident.
+
+If I try to close the room before the handoff is acknowledged…”
+
+[Click Close]
+
+“…the system rejects it.”
+
+[Show 409]
+
+“After the handoff is acknowledged…”
+
+[ACK → Close]
+
+“…the incident can be closed.”
+
+### Say:
+
+**‘No ACK, no close.’**
+
+---
+
+### 8. Technical architecture
+
+“Technically, Baton uses:
+
+**Next.js** for the application,
+
+**Liveblocks** for real-time collaboration and presence,
+
+**Moss** for low-latency semantic retrieval,
+
+**Gemini Flash-Lite** for AI generation,
+
+and **Neon Postgres** for durable approvals, handoffs, and audit state.
+
+The key architectural idea is simple:
+
+**real-time collaboration is handled separately from durable operational state.**
+
+That is what allows the system to survive an agent failure or a human handoff.”
+
+---
+
+### 9. Closing
+
+“So Baton is not trying to be another AI chatbot.
+
+It is a **coordination and control layer for AI-assisted incident response.**
+
+The core idea is:
 
 **When the people or agents change, the operational context should not disappear.**
 
@@ -443,70 +176,19 @@ Thank you.”
 
 ---
 
-# The 4 lines I want you to memorize
+## Memorize only this flow
 
-Do **not** memorize the entire script word-for-word. Memorize these four lines and let the demo demonstrate them:
+Before going on stage, remember:
 
-### 1.
+**Problem → Shared Room → Ask AI → Citations → Human Redirect → Kill Agent → Resume Checkpoint → 2-of-2 Approval → ACK → Close.**
 
-**“The room is the state.”**
+And memorize these four lines:
 
-### 2.
+> **“The room is the state.”**
+> **“The successor continues from the checkpoint, not from zero.”**
+> **“One human proposes. Another human ratifies.”**
+> **“No ACK, no close.”**
 
-**“The successor continues from the checkpoint, not from zero.”**
+These give you a clear backbone even if you forget some wording. The repository README and `docs/` describe these same query, handoff, co-sign, and close contracts; Liveblocks rooms/presence concepts are covered in the official concepts guide. ([liveblocks.io][1])
 
-### 3.
-
-**“One human proposes. Another human ratifies.”**
-
-### 4.
-
-**“No ACK, no close.”**
-
-Those four statements explain almost the entire product.
-
----
-
-# How to divide the presentation between you
-
-### Arun — Product + technical lead
-
-You handle:
-
-**Problem → Baton → architecture → AI retrieval → agent failure → approval system → final conclusion**
-
-### Priya — Second operator
-
-She handles:
-
-**Joining room → redirecting investigation → taking over after agent failure → ratifying action → ACK**
-
-That makes the presentation itself demonstrate your product's core concept: **two humans collaborating in the same operational room.**
-
----
-
-# What NOT to do in front of this jury
-
-Do not start with:
-
-> “Our tech stack is Next.js, Liveblocks, Neon, Gemini…”
-
-Start with the **production problem**.
-
-Do not spend two minutes explaining database tables.
-
-Do not explain every API route unless asked.
-
-Do not repeatedly say “AI-powered.”
-
-Instead, demonstrate exactly **what the AI does and where humans remain in control**.
-
-And do not make unsupported claims such as “this completely solves incident response.” Say exactly what your implementation demonstrates.
-
-### One important adjustment for the jury
-
-When you reach the **Moss** portion, slow down slightly. This is a Moss-focused builder sprint, so the judges will likely care about **where retrieval sits in the actual product architecture**, not merely that Moss appears in the technology list. Your strongest explanation is:
-
-> **“Moss is on the incident query path, retrieving operational context from our indexed SOP knowledge so the agent can answer from relevant evidence rather than starting from an empty context.”**
-
-That connects the hackathon technology directly to the product rather than mentioning Moss as a checkbox.
+[1]: https://liveblocks.io/docs/concepts "Concepts · Liveblocks Docs"
